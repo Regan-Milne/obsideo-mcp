@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
-  "name": "io.github.regan-milne/obsideo-mcp",
+  "name": "io.obsideo/mcp",
   "description": "Encrypted S3-compatible storage with cryptographic possession proofs. Self-serve signup in-conversation, 12 GB free, credentials stay on your machine.",
   "repository": {
     "url": "https://github.com/Regan-Milne/obsideo-mcp",

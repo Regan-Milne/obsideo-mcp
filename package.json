@@ -1,7 +1,7 @@
 {
   "name": "obsideo-mcp",
   "version": "0.1.0",
-  "mcpName": "io.github.regan-milne/obsideo-mcp",
+  "mcpName": "io.obsideo/mcp",
   "description": "MCP server for Obsideo: encrypted, S3-compatible storage with continuous cryptographic possession proofs. Self-serve signup (12 GB free, no card), put/get/ls/rm/usage tools. Runs on YOUR machine; credentials and keys never leave it.",
   "license": "MIT",
   "type": "module",
