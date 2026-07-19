@@ -1,5 +1,5 @@
 /**
- * Obsideo MCP server — stdio. `npx @obsideo/mcp`
+ * Obsideo MCP server — stdio. `npx obsideo-mcp`
  *
  * Encrypted, S3-compatible storage with continuous cryptographic possession
  * proofs, as an installable agent capability. Runs on the user's machine;

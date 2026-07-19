@@ -31,14 +31,14 @@ they pass. Paid tier: $15/TB-month, egress included.
   "mcpServers": {
     "obsideo": {
       "command": "npx",
-      "args": ["-y", "@obsideo/mcp"]
+      "args": ["-y", "obsideo-mcp"]
     }
   }
 }
 ```
 
 (Claude Desktop: `claude_desktop_config.json`. Claude Code:
-`claude mcp add obsideo -- npx -y @obsideo/mcp`. Cursor/Cline: their MCP
+`claude mcp add obsideo -- npx -y obsideo-mcp`. Cursor/Cline: their MCP
 settings, same command.)
 
 ## Tools
