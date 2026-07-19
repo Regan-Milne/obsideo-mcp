@@ -4,6 +4,10 @@
  * Encrypted, S3-compatible storage with continuous cryptographic possession
  * proofs, as an installable agent capability. Runs on the user's machine;
  * credentials and keys stay local (see config.ts). Obsideo never hosts this.
+ *
+ * Every tool carries a title + readOnlyHint/destructiveHint annotation
+ * (Connectors Directory requirement; annotations are honest, not aspirational:
+ * `put` can overwrite an existing key, so it is marked destructive).
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -12,7 +16,7 @@ import { z } from "zod";
 import { signupStart, signupVerify } from "./signup.js";
 import { get, ls, put, rm, usage } from "./storage.js";
 
-const server = new McpServer({ name: "obsideo", version: "0.1.0" });
+const server = new McpServer({ name: "obsideo", version: "0.2.0" });
 
 function text(t: string) {
   return { content: [{ type: "text" as const, text: t }] };
@@ -25,13 +29,20 @@ function errText(e: unknown) {
   };
 }
 
-server.tool(
+server.registerTool(
   "signup_start",
-  "Start Obsideo signup: emails a 6-digit verification code (12 GB free tier, no card, " +
-    "no expiry). Use a real inbox you or your human can read; documentation placeholders " +
-    "and disposable domains are refused with labeled errors. Then call signup_verify.",
-  { email: z.string().describe("Real email address; it is the account identity"),
-    source: z.string().optional().describe("Where you found Obsideo (defaults to 'mcp')") },
+  {
+    title: "Start Obsideo signup",
+    description:
+      "Start Obsideo signup: emails a 6-digit verification code (12 GB free tier, no card, " +
+      "no expiry). Use a real inbox you or your human can read; documentation placeholders " +
+      "and disposable domains are refused with labeled errors. Then call signup_verify.",
+    inputSchema: {
+      email: z.string().describe("Real email address; it is the account identity"),
+      source: z.string().optional().describe("Where you found Obsideo (defaults to 'mcp')"),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  },
   async ({ email, source }) => {
     try {
       return text(await signupStart(email, source));
@@ -41,12 +52,20 @@ server.tool(
   }
 );
 
-server.tool(
+server.registerTool(
   "signup_verify",
-  "Complete signup with the emailed code. Generates the Ed25519 account signing keypair " +
-    "locally (only the public half is sent; deletes require your signature), stores S3 " +
-    "credentials in ~/.obsideo/mcp.json. Idempotent: re-running rotates credentials.",
-  { email: z.string(), code: z.string().describe("The 6-digit code from the email") },
+  {
+    title: "Complete Obsideo signup",
+    description:
+      "Complete signup with the emailed code. Generates the Ed25519 account signing keypair " +
+      "locally (only the public half is sent; deletes require your signature), stores S3 " +
+      "credentials in ~/.obsideo/mcp.json. Idempotent: re-running rotates credentials.",
+    inputSchema: {
+      email: z.string(),
+      code: z.string().describe("The 6-digit code from the email"),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
   async ({ email, code }) => {
     try {
       return text(await signupVerify(email, code));
@@ -56,18 +75,24 @@ server.tool(
   }
 );
 
-server.tool(
+server.registerTool(
   "put",
-  "Store a local file or inline content as an object. Optional encrypt=true encrypts " +
-    "client-side with AES-256-GCM using a locally generated, user-held key before upload " +
-    "(the platform then cannot read the object; key loss = data loss). Zero-byte objects " +
-    "are rejected. Objects are replicated to 3 independent providers and cryptographically " +
-    "challenge-verified every 4 hours.",
   {
-    key: z.string().describe("Object key, e.g. backups/db-2026-07-19.sql.zst"),
-    local_path: z.string().optional().describe("Path of a local file to upload"),
-    content: z.string().optional().describe("Inline UTF-8 content (alternative to local_path)"),
-    encrypt: z.boolean().optional().describe("Encrypt client-side before upload"),
+    title: "Store an object",
+    description:
+      "Store a local file or inline content as an object. Optional encrypt=true encrypts " +
+      "client-side with AES-256-GCM using a locally generated, user-held key before upload " +
+      "(the platform then cannot read the object; key loss = data loss). Zero-byte objects " +
+      "are rejected. Objects are replicated to 3 independent providers and cryptographically " +
+      "challenge-verified every 4 hours.",
+    inputSchema: {
+      key: z.string().describe("Object key, e.g. backups/db-2026-07-19.sql.zst"),
+      local_path: z.string().optional().describe("Path of a local file to upload"),
+      content: z.string().optional().describe("Inline UTF-8 content (alternative to local_path)"),
+      encrypt: z.boolean().optional().describe("Encrypt client-side before upload"),
+    },
+    // destructiveHint true: writing to an existing key overwrites it.
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
   },
   async (args) => {
     try {
@@ -78,11 +103,19 @@ server.tool(
   }
 );
 
-server.tool(
+server.registerTool(
   "get",
-  "Retrieve an object. Client-side-encrypted objects are decrypted automatically with " +
-    "the local key. Small text objects return inline; pass local_path for anything else.",
-  { key: z.string(), local_path: z.string().optional().describe("Save to this path instead of returning inline") },
+  {
+    title: "Retrieve an object",
+    description:
+      "Retrieve an object. Client-side-encrypted objects are decrypted automatically with " +
+      "the local key. Small text objects return inline; pass local_path for anything else.",
+    inputSchema: {
+      key: z.string(),
+      local_path: z.string().optional().describe("Save to this path instead of returning inline"),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: true },
+  },
   async ({ key, local_path }) => {
     try {
       const r = await get(key, local_path);
@@ -95,10 +128,14 @@ server.tool(
   }
 );
 
-server.tool(
+server.registerTool(
   "ls",
-  "List stored objects (size TAB key), optionally under a prefix.",
-  { prefix: z.string().optional() },
+  {
+    title: "List stored objects",
+    description: "List stored objects (size TAB key), optionally under a prefix.",
+    inputSchema: { prefix: z.string().optional() },
+    annotations: { readOnlyHint: true, openWorldHint: true },
+  },
   async ({ prefix }) => {
     try {
       return text(await ls(prefix));
@@ -108,10 +145,14 @@ server.tool(
   }
 );
 
-server.tool(
+server.registerTool(
   "rm",
-  "Delete an object by key.",
-  { key: z.string() },
+  {
+    title: "Delete an object",
+    description: "Delete an object by key.",
+    inputSchema: { key: z.string() },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+  },
   async ({ key }) => {
     try {
       return text(await rm(key));
@@ -121,10 +162,14 @@ server.tool(
   }
 );
 
-server.tool(
+server.registerTool(
   "usage",
-  "Show account storage usage versus quota.",
-  {},
+  {
+    title: "Show storage usage",
+    description: "Show account storage usage versus quota.",
+    inputSchema: {},
+    annotations: { readOnlyHint: true, openWorldHint: true },
+  },
   async () => {
     try {
       return text(await usage());

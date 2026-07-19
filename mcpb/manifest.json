@@ -1,0 +1,45 @@
+{
+  "manifest_version": "0.2",
+  "name": "obsideo",
+  "display_name": "Obsideo Storage",
+  "version": "0.2.0",
+  "description": "Encrypted S3-compatible storage with cryptographic possession proofs. 12 GB free, signup in-conversation, credentials stay on your machine.",
+  "long_description": "Give Claude durable, private object storage. Obsideo is encrypted, S3-compatible storage where every stored object is replicated to 3 independent providers and challenge-verified with chunk-level merkle proofs every 4 hours. Sign up in-conversation (email code, 12 GB free, no card), then store, retrieve, list, and delete objects. Optional client-side AES-256-GCM encryption with a locally generated, user-held key makes objects unreadable to the platform. This extension runs entirely on your machine: credentials and encryption keys are stored locally in ~/.obsideo/mcp.json and are never sent to or hosted by Obsideo. Deletes are authorized by an Ed25519 signature only you hold.",
+  "author": {
+    "name": "Obsideo",
+    "email": "regan@obsideo.io",
+    "url": "https://obsideo.io"
+  },
+  "homepage": "https://obsideo.io",
+  "documentation": "https://obsideo.io/agents.md",
+  "support": "mailto:regan@obsideo.io",
+  "icon": "icon.png",
+  "license": "MIT",
+  "keywords": ["storage", "backup", "encrypted", "s3", "object-storage", "files"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Regan-Milne/obsideo-mcp"
+  },
+  "privacy_policies": ["https://obsideo.io/privacy"],
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.mjs",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.mjs"]
+    }
+  },
+  "tools": [
+    { "name": "signup_start", "description": "Start Obsideo signup: emails a 6-digit verification code (12 GB free, no card)" },
+    { "name": "signup_verify", "description": "Complete signup; keypair generated locally, credentials stored on this machine" },
+    { "name": "put", "description": "Store a file or inline content as an object, optionally client-side encrypted" },
+    { "name": "get", "description": "Retrieve an object (auto-decrypts client-side-encrypted objects)" },
+    { "name": "ls", "description": "List stored objects" },
+    { "name": "rm", "description": "Delete an object" },
+    { "name": "usage", "description": "Show storage usage versus quota" }
+  ],
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": { "node": ">=18" }
+  }
+}

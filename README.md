@@ -75,3 +75,13 @@ hash-exact (sha256) and labeled-error passthrough from the signup service.
 ## License
 
 MIT
+
+## Privacy Policy
+
+This extension runs entirely on your machine. Credentials, your account signing
+key, and any client-side encryption key are stored locally in
+`~/.obsideo/mcp.json` and are never sent to or hosted by Obsideo. Conversation
+content from your AI assistant is not collected; only the tool calls you make
+(for example an upload) reach the storage service.
+
+Full policy: https://obsideo.io/privacy
