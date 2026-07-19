@@ -20,7 +20,7 @@
     "type": "git",
     "url": "https://github.com/Regan-Milne/obsideo-mcp"
   },
-  "privacy_policies": ["https://obsideo.io/privacy"],
+  "privacy_policies": ["https://obsideo.io/privacy/"],
   "server": {
     "type": "node",
     "entry_point": "server/index.mjs",

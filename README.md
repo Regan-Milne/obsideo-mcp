@@ -84,4 +84,4 @@ key, and any client-side encryption key are stored locally in
 content from your AI assistant is not collected; only the tool calls you make
 (for example an upload) reach the storage service.
 
-Full policy: https://obsideo.io/privacy
+Full policy: https://obsideo.io/privacy/
