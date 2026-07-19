@@ -1,0 +1,44 @@
+{
+  "name": "@obsideo/mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Obsideo: encrypted, S3-compatible storage with continuous cryptographic possession proofs. Self-serve signup (12 GB free, no card), put/get/ls/rm/usage tools. Runs on YOUR machine; credentials and keys never leave it.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "obsideo-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && node -e \"const fs=require('fs');const p='dist/index.js';fs.writeFileSync(p,'#!/usr/bin/env node\\n'+fs.readFileSync(p,'utf8'))\"",
+    "test": "node --test dist-test/"
+  },
+  "keywords": [
+    "mcp",
+    "modelcontextprotocol",
+    "storage",
+    "encrypted-storage",
+    "s3",
+    "backup",
+    "ai-agents",
+    "obsideo"
+  ],
+  "homepage": "https://obsideo.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Regan-Milne/obsideo-mcp.git"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.700.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
