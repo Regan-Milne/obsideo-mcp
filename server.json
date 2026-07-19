@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "io.obsideo/mcp",
-  "description": "Encrypted S3-compatible storage with cryptographic possession proofs. Self-serve signup in-conversation, 12 GB free, credentials stay on your machine.",
+  "description": "Encrypted S3-compatible storage with cryptographic possession proofs. 12 GB free, self-serve.",
   "repository": {
     "url": "https://github.com/Regan-Milne/obsideo-mcp",
     "source": "github"
@@ -9,8 +9,8 @@
   "version": "0.1.0",
   "packages": [
     {
-      "registry_type": "npm",
-      "registry_base_url": "https://registry.npmjs.org",
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "obsideo-mcp",
       "version": "0.1.0",
       "transport": {
