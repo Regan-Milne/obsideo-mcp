@@ -26,6 +26,13 @@ they pass. Paid tier: $15/TB-month, egress included.
 
 ## Install
 
+**Claude Desktop, one click:** download
+[`obsideo-mcp.mcpb`](https://github.com/Regan-Milne/obsideo-mcp/releases/latest/download/obsideo-mcp.mcpb)
+from the [latest release](https://github.com/Regan-Milne/obsideo-mcp/releases/latest),
+then Settings -> Extensions and drag the file in. No Node or npm setup needed.
+
+**Everything else, via npx:**
+
 ```json
 {
   "mcpServers": {
