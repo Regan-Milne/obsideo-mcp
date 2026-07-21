@@ -8,38 +8,76 @@
   "author": {
     "name": "Obsideo",
     "email": "regan@obsideo.io",
-    "url": "https://obsideo.io"
+    "url": "https://github.com/Regan-Milne"
   },
   "homepage": "https://obsideo.io",
   "documentation": "https://obsideo.io/agents.md",
   "support": "mailto:regan@obsideo.io",
   "icon": "icon.png",
   "license": "MIT",
-  "keywords": ["storage", "backup", "encrypted", "s3", "object-storage", "files"],
+  "keywords": [
+    "storage",
+    "backup",
+    "encrypted",
+    "s3",
+    "object-storage",
+    "files"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/Regan-Milne/obsideo-mcp"
   },
-  "privacy_policies": ["https://obsideo.io/privacy/"],
+  "privacy_policies": [
+    "https://obsideo.io/privacy/"
+  ],
   "server": {
     "type": "node",
     "entry_point": "server/index.mjs",
     "mcp_config": {
       "command": "node",
-      "args": ["${__dirname}/server/index.mjs"]
+      "args": [
+        "${__dirname}/server/index.mjs"
+      ]
     }
   },
   "tools": [
-    { "name": "signup_start", "description": "Start Obsideo signup: emails a 6-digit verification code (12 GB free, no card)" },
-    { "name": "signup_verify", "description": "Complete signup; keypair generated locally, credentials stored on this machine" },
-    { "name": "put", "description": "Store a file or inline content as an object, optionally client-side encrypted" },
-    { "name": "get", "description": "Retrieve an object (auto-decrypts client-side-encrypted objects)" },
-    { "name": "ls", "description": "List stored objects" },
-    { "name": "rm", "description": "Delete an object" },
-    { "name": "usage", "description": "Show storage usage versus quota" }
+    {
+      "name": "signup_start",
+      "description": "Start Obsideo signup: emails a 6-digit verification code (12 GB free, no card)"
+    },
+    {
+      "name": "signup_verify",
+      "description": "Complete signup; keypair generated locally, credentials stored on this machine"
+    },
+    {
+      "name": "put",
+      "description": "Store a file or inline content as an object, optionally client-side encrypted"
+    },
+    {
+      "name": "get",
+      "description": "Retrieve an object (auto-decrypts client-side-encrypted objects)"
+    },
+    {
+      "name": "ls",
+      "description": "List stored objects"
+    },
+    {
+      "name": "rm",
+      "description": "Delete an object"
+    },
+    {
+      "name": "usage",
+      "description": "Show storage usage versus quota"
+    }
   ],
   "compatibility": {
-    "platforms": ["darwin", "win32", "linux"],
-    "runtimes": { "node": ">=18" }
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "node": ">=18"
+    }
   }
 }
