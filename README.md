@@ -5,8 +5,8 @@ durable, encrypted, cryptographically verified storage. Self-serve signup from
 inside the conversation: 12 GB free, no card, no CAPTCHA, no expiry.
 
 [Obsideo](https://obsideo.io) is S3-compatible object storage where every
-stored object is replicated to 3 independent providers and challenged with
-chunk-level merkle proofs every 4 hours; providers are paid only for proofs
+stored object is replicated to 3 providers and challenged with chunk-level
+merkle proofs on a continuous cycle; providers are paid only for proofs
 they pass. Paid tier: $15/TB-month, egress included.
 
 ## Privacy posture (read this first)
@@ -16,8 +16,8 @@ they pass. Paid tier: $15/TB-month, egress included.
   `~/.obsideo/` and are sent nowhere except the endpoints they authenticate
   against.
 - **The account signing key is generated locally**; only the public half is
-  ever sent. Deletes on your account are authorized only by your signature,
-  so the platform cannot destroy your data unilaterally.
+  ever sent. Keep `~/.obsideo/signing.pem` private. Re-running signup rotates
+  credentials and the keypair with no overlap, so do not re-run casually.
 - **Optional encrypt-first storage**: `put` with `encrypt: true` encrypts
   client-side (AES-256-GCM) with a locally generated, user-held key before
   upload. The platform then stores ciphertext it is architecturally incapable

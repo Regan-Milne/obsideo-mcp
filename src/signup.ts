@@ -2,9 +2,8 @@
  * Self-serve signup against signup.obsideo.io — email OTP only, no card.
  *
  * The Ed25519 account signing keypair is generated HERE, on the user's
- * machine; only the public half is ever sent (deletes on the account are
- * authorized only by the user's signature — the platform cannot destroy
- * data unilaterally). The private key is written to ~/.obsideo/signing.pem.
+ * machine; only the public half is ever sent. The private key is written
+ * to ~/.obsideo/signing.pem.
  */
 
 import { generateKeyPairSync } from "node:crypto";

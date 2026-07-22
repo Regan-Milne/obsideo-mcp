@@ -58,13 +58,14 @@ server.registerTool(
     title: "Complete Obsideo signup",
     description:
       "Complete signup with the emailed code. Generates the Ed25519 account signing keypair " +
-      "locally (only the public half is sent; deletes require your signature), stores S3 " +
-      "credentials in ~/.obsideo/mcp.json. Idempotent: re-running rotates credentials.",
+      "locally (only the public half is sent), stores S3 " +
+      "credentials in ~/.obsideo/mcp.json. Re-running rotates credentials and keypair " +
+      "with no overlap; do not re-run to retry.",
     inputSchema: {
       email: z.string(),
       code: z.string().describe("The 6-digit code from the email"),
     },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },
   async ({ email, code }) => {
     try {
@@ -83,8 +84,8 @@ server.registerTool(
       "Store a local file or inline content as an object. Optional encrypt=true encrypts " +
       "client-side with AES-256-GCM using a locally generated, user-held key before upload " +
       "(the platform then cannot read the object; key loss = data loss). Zero-byte objects " +
-      "are rejected. Objects are replicated to 3 independent providers and cryptographically " +
-      "challenge-verified every 4 hours.",
+      "are rejected. Objects are replicated to 3 providers and verified on a continuous " +
+      "cryptographic challenge cycle.",
     inputSchema: {
       key: z.string().describe("Object key, e.g. backups/db-2026-07-19.sql.zst"),
       local_path: z.string().optional().describe("Path of a local file to upload"),

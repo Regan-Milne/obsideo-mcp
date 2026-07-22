@@ -1,7 +1,6 @@
 /**
- * Storage operations against the Obsideo S3 gateway (external mode: the
- * gateway is a zero-knowledge passthrough; bytes are stored exactly as
- * sent). Optional encrypt-first via crypto.ts.
+ * Storage operations against the Obsideo S3 gateway (bytes are stored
+ * exactly as sent). Optional encrypt-first via crypto.ts.
  */
 
 import {
