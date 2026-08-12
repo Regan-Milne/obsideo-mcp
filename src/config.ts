@@ -22,6 +22,12 @@ export interface ObsideoConfig {
   secret_key?: string;
   /** base64 32-byte AES-256-GCM key, generated locally on first encrypted put */
   encryption_key?: string;
+  /** true when this account was auto-provisioned as a no-email trial */
+  trial?: boolean;
+  /** generated reference handle for a trial account, e.g. "copper-badger" */
+  agent_name?: string;
+  /** ISO expiry of a trial account (informational) */
+  trial_expires_at?: string;
 }
 
 export const CONFIG_DIR = process.env.OBSIDEO_MCP_HOME ?? join(homedir(), ".obsideo");

@@ -1,8 +1,11 @@
 # Obsideo MCP server
 
 Give any MCP-capable agent (Claude Desktop, Claude Code, Cursor, Cline, ...)
-durable, encrypted, cryptographically verified storage. Self-serve signup from
-inside the conversation: 12 GB free, no card, no CAPTCHA, no expiry.
+durable, encrypted, cryptographically verified storage. Zero setup: the first
+`put`/`get`/`ls` auto-creates a free no-email trial account (100 MB, proof-of-work
+instead of identity), so storage just works with nothing to configure. Want more?
+Self-serve signup from inside the conversation upgrades to 12 GB free, no card,
+no CAPTCHA, no expiry.
 
 [Obsideo](https://obsideo.io) is S3-compatible object storage where every
 stored object is replicated to 3 providers and challenged with chunk-level
@@ -52,9 +55,10 @@ settings, same command.)
 
 | Tool | What it does |
 |---|---|
+| `trial` | Create an instant no-email account (100 MB, ~7 days, proof-of-work, no human needed). Usually unnecessary: storage tools auto-create one on first use |
 | `signup_start` | Email a 6-digit code (12 GB free tier; real inboxes only, refusals are labeled) |
 | `signup_verify` | Complete signup; generates the signing keypair locally, stores credentials |
-| `put` | Store a file or inline content; optional client-side encryption |
+| `put` | Store a file or inline content; optional client-side encryption. Auto-creates a trial account if none is configured |
 | `get` | Retrieve an object (auto-decrypts locally encrypted objects) |
 | `ls` | List objects, optionally by prefix |
 | `rm` | Delete an object |

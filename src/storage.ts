@@ -12,8 +12,9 @@ import {
   CreateBucketCommand,
 } from "@aws-sdk/client-s3";
 import { readFileSync, writeFileSync } from "node:fs";
-import { loadConfig, saveConfig, requireCreds, type ObsideoConfig } from "./config.js";
+import { saveConfig, requireCreds, type ObsideoConfig } from "./config.js";
 import { decrypt, encrypt, generateKey, isEncrypted } from "./crypto.js";
+import { ensureCreds } from "./trial.js";
 
 function client(cfg: ObsideoConfig): S3Client {
   requireCreds(cfg);
@@ -58,8 +59,7 @@ export interface PutArgs {
 }
 
 export async function put(args: PutArgs): Promise<string> {
-  const cfg = loadConfig();
-  requireCreds(cfg);
+  const { cfg, note: provisionNote } = await ensureCreds();
   let data: Buffer;
   if (args.local_path) data = readFileSync(args.local_path);
   else if (args.content !== undefined) data = Buffer.from(args.content, "utf8");
@@ -85,6 +85,7 @@ export async function put(args: PutArgs): Promise<string> {
     c.send(new PutObjectCommand({ Bucket: cfg.bucket, Key: args.key, Body: data }))
   );
   return (
+    provisionNote +
     `Stored ${args.key} (${data.length} bytes${args.encrypt ? ", encrypted client-side" : ", bytes-as-sent"}).` +
     note
   );
@@ -95,11 +96,11 @@ export interface GetResult {
   saved_to?: string;
   bytes: number;
   encrypted: boolean;
+  note?: string;
 }
 
 export async function get(key: string, local_path?: string): Promise<GetResult> {
-  const cfg = loadConfig();
-  requireCreds(cfg);
+  const { cfg, note } = await ensureCreds();
   const r = await client(cfg).send(
     new GetObjectCommand({ Bucket: cfg.bucket, Key: key })
   );
@@ -117,40 +118,34 @@ export async function get(key: string, local_path?: string): Promise<GetResult> 
   }
   if (local_path) {
     writeFileSync(local_path, data);
-    return { saved_to: local_path, bytes: data.length, encrypted: wasEncrypted };
+    return { saved_to: local_path, bytes: data.length, encrypted: wasEncrypted, note };
   }
   if (data.length > 262144) {
     throw new Error(
       `Object is ${data.length} bytes; too large to return inline. Pass local_path to save it to disk.`
     );
   }
-  return { text: data.toString("utf8"), bytes: data.length, encrypted: wasEncrypted };
+  return { text: data.toString("utf8"), bytes: data.length, encrypted: wasEncrypted, note };
 }
 
 export async function ls(prefix?: string): Promise<string> {
-  const cfg = loadConfig();
-  requireCreds(cfg);
+  const { cfg, note } = await ensureCreds();
   const r = await client(cfg).send(
     new ListObjectsV2Command({ Bucket: cfg.bucket, Prefix: prefix })
   );
   const items = (r.Contents ?? []).map((o) => `${o.Size}\t${o.Key}`);
-  return items.length ? items.join("\n") : "(no objects" + (prefix ? ` under ${prefix})` : ")");
+  const body = items.length ? items.join("\n") : "(no objects" + (prefix ? ` under ${prefix})` : ")");
+  return note + body;
 }
 
 export async function rm(key: string): Promise<string> {
-  const cfg = loadConfig();
-  requireCreds(cfg);
+  const { cfg, note } = await ensureCreds();
   await client(cfg).send(new DeleteObjectCommand({ Bucket: cfg.bucket, Key: key }));
-  return `Deleted ${key}.`;
+  return note + `Deleted ${key}.`;
 }
 
 export async function usage(): Promise<string> {
-  const cfg = loadConfig();
-  if (!cfg.account_token) {
-    throw new Error(
-      "No account token in config (usage requires an account created via signup tools)."
-    );
-  }
+  const { cfg, note } = await ensureCreds();
   const base = process.env.OBSIDEO_SIGNUP_URL ?? "https://signup.obsideo.io";
   const resp = await fetch(base + "/v1/account/usage", {
     headers: { Authorization: `Bearer ${cfg.account_token}` },
@@ -158,6 +153,7 @@ export async function usage(): Promise<string> {
   const json: any = await resp.json();
   if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${JSON.stringify(json.detail ?? json)}`);
   return (
+    note +
     `Used ${(json.used_bytes / 1e9).toFixed(3)} GB of ${json.quota_gb} GB ` +
     `(${(json.percent_used * 100).toFixed(1)}%). Account ${json.account_id}.`
   );

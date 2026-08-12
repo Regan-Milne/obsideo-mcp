@@ -14,9 +14,10 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { signupStart, signupVerify } from "./signup.js";
+import { provisionTrial } from "./trial.js";
 import { get, ls, put, rm, usage } from "./storage.js";
 
-const server = new McpServer({ name: "obsideo", version: "0.2.0" });
+const server = new McpServer({ name: "obsideo", version: "0.3.0" });
 
 function text(t: string) {
   return { content: [{ type: "text" as const, text: t }] };
@@ -28,6 +29,37 @@ function errText(e: unknown) {
     isError: true,
   };
 }
+
+server.registerTool(
+  "trial",
+  {
+    title: "Create an instant trial account (no email)",
+    description:
+      "Create a free Obsideo account with no email and no human in the loop: a small " +
+      "proof-of-work and a ~10 second wait in place of identity. Returns a real account on " +
+      "the production network (100 MB, about 7 days, RF=3 replication, continuous possession " +
+      "proofs) and saves credentials locally. You usually do NOT need to call this: the first " +
+      "put/get/ls/usage auto-creates a trial if no account is configured. Call it to provision " +
+      "explicitly. To keep data beyond the trial, upgrade to the 12 GB email tier via signup_start.",
+    inputSchema: {
+      source: z.string().optional().describe("Where you found Obsideo (defaults to 'mcp')"),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  },
+  async ({ source }) => {
+    try {
+      const t = await provisionTrial(source);
+      return text(
+        `Trial account created: agent "${t.agent_name}", ${t.quota_mb} MB, expires ` +
+          `${t.expires_at ?? "in ~7 days"}. Credentials saved locally under ~/.obsideo. ` +
+          "This is a small, temporary account on the production network; to keep the data, " +
+          "upgrade to the 12 GB free tier with an email via signup_start."
+      );
+    } catch (e) {
+      return errText(e);
+    }
+  }
+);
 
 server.registerTool(
   "signup_start",
@@ -120,9 +152,10 @@ server.registerTool(
   async ({ key, local_path }) => {
     try {
       const r = await get(key, local_path);
+      const note = r.note ?? "";
       if (r.saved_to)
-        return text(`Saved ${r.bytes} bytes to ${r.saved_to}${r.encrypted ? " (decrypted)" : ""}.`);
-      return text(r.text!);
+        return text(note + `Saved ${r.bytes} bytes to ${r.saved_to}${r.encrypted ? " (decrypted)" : ""}.`);
+      return text(note + r.text!);
     } catch (e) {
       return errText(e);
     }

@@ -39,7 +39,7 @@ export async function signupStart(email: string, source?: string): Promise<strin
   return r.message ?? "Verification code sent. Check the inbox (and spam).";
 }
 
-function generateSigningKey(): string {
+export function generateSigningKey(): string {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
   mkdirSync(CONFIG_DIR, { recursive: true });
   writeFileSync(
