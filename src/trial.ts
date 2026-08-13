@@ -117,6 +117,7 @@ export async function provisionTrial(source = "mcp"): Promise<TrialResult> {
     email: `trial:${r.agent_name}`,
     account_id: r.account_id,
     account_token: r.account_token,
+    api_key: r.api_key,
     endpoint: r.endpoint,
     region: r.region,
     bucket: r.bucket,

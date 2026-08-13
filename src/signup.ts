@@ -69,6 +69,7 @@ export async function signupVerify(email: string, code: string): Promise<string>
     email,
     account_id: r.account_id,
     account_token: r.account_token,
+    api_key: r.api_key,
     endpoint: r.endpoint,
     region: r.region,
     bucket: r.bucket,

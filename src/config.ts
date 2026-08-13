@@ -15,6 +15,8 @@ export interface ObsideoConfig {
   email?: string;
   account_id?: string;
   account_token?: string;
+  /** coordinator bearer (obs_...): authorizes the verification-kit + proof-status APIs */
+  api_key?: string;
   endpoint?: string;
   region?: string;
   bucket?: string;

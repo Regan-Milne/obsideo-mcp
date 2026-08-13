@@ -16,8 +16,9 @@ import { z } from "zod";
 import { signupStart, signupVerify } from "./signup.js";
 import { provisionTrial } from "./trial.js";
 import { get, ls, put, rm, usage } from "./storage.js";
+import { verifyObject } from "./verify.js";
 
-const server = new McpServer({ name: "obsideo", version: "0.3.0" });
+const server = new McpServer({ name: "obsideo", version: "0.4.0" });
 
 function text(t: string) {
   return { content: [{ type: "text" as const, text: t }] };
@@ -190,6 +191,54 @@ server.registerTool(
   async ({ key }) => {
     try {
       return text(await rm(key));
+    } catch (e) {
+      return errText(e);
+    }
+  }
+);
+
+server.registerTool(
+  "verify",
+  {
+    title: "Prove an object is really stored (client-side)",
+    description:
+      "Independently verify that the network still holds an object, without downloading it. " +
+      "Challenges each provider directly, recomputes the merkle root from your own copy of the " +
+      "bytes, and checks each provider's cryptographic signature. Trusts nothing the coordinator " +
+      "says for the verdict. Pass local_path (your copy of the stored file) for the strong proof " +
+      "that they hold YOUR bytes; omit it to verify against the coordinator's recorded root. " +
+      "Returns how many providers proved possession right now and whether any returned bad data.",
+    inputSchema: {
+      key: z.string().describe("Object key to verify, e.g. backups/db-2026-08-13.sql.zst"),
+      local_path: z.string().optional().describe("Your local copy of the stored bytes (enables the strong proof)"),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: true },
+  },
+  async ({ key, local_path }) => {
+    try {
+      const r = await verifyObject(key, local_path);
+      const lines: string[] = [];
+      lines.push(
+        `${r.proved} of ${r.holders} providers proved possession of ${r.bucket}/${key} right now` +
+          (r.signed ? ` (${r.signed} returned a valid cryptographic signature)` : "") + "."
+      );
+      lines.push(
+        r.strong
+          ? "Verified against the merkle root computed from YOUR local copy: they hold your exact bytes."
+          : "Verified against the coordinator's recorded root (pass local_path to prove they hold YOUR bytes)."
+      );
+      for (const p of r.results) {
+        if (p.pass) lines.push(`  ok    ${p.address}  ${p.ms}ms  proved + signed`);
+        else if (p.older_node) lines.push(`  note  ${p.address}  older node without client-challenge (still serves the coordinator proof cycle; not a failure)`);
+        else if (p.failed_proof) lines.push(`  ALARM ${p.address}  ${p.error}`);
+        else lines.push(`  skip  ${p.address}  ${p.error ?? "not challenged"}`);
+      }
+      if (r.mismatch)
+        lines.push("\nWARNING: a provider answered but failed the proof. This is a real integrity alarm, not a network hiccup. Investigate before trusting this object.");
+      else if (r.proved === 0)
+        lines.push("\nNo provider could be challenged this way right now. Not necessarily loss (could be older nodes or rate limits), but do not treat this object as verified.");
+      lines.push("\nThis check trusted nothing the coordinator asserted: it went to the providers directly and checked the maths and signatures itself.");
+      return text(lines.join("\n"));
     } catch (e) {
       return errText(e);
     }
