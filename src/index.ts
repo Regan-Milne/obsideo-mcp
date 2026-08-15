@@ -18,7 +18,7 @@ import { provisionTrial } from "./trial.js";
 import { get, ls, put, rm, usage } from "./storage.js";
 import { verifyObject } from "./verify.js";
 
-const server = new McpServer({ name: "obsideo", version: "0.4.0" });
+const server = new McpServer({ name: "obsideo", version: "0.5.0" });
 
 function text(t: string) {
   return { content: [{ type: "text" as const, text: t }] };
@@ -53,6 +53,8 @@ server.registerTool(
       return text(
         `Trial account created: agent "${t.agent_name}", ${t.quota_mb} MB, expires ` +
           `${t.expires_at ?? "in ~7 days"}. Credentials saved locally under ~/.obsideo. ` +
+          "Objects are encrypted client-side by default with a key generated on this machine " +
+          "and held only here; back up ~/.obsideo/mcp.json or the data cannot be recovered. " +
           "This is a small, temporary account on the production network; to keep the data, " +
           "upgrade to the 12 GB free tier with an email via signup_start."
       );
@@ -114,16 +116,22 @@ server.registerTool(
   {
     title: "Store an object",
     description:
-      "Store a local file or inline content as an object. Optional encrypt=true encrypts " +
-      "client-side with AES-256-GCM using a locally generated, user-held key before upload " +
-      "(the platform then cannot read the object; key loss = data loss). Zero-byte objects " +
-      "are rejected. Objects are replicated to 3 providers and verified on a continuous " +
-      "cryptographic challenge cycle.",
+      "Store a local file or inline content as an object. ENCRYPTED BY DEFAULT: the bytes are " +
+      "encrypted client-side with AES-256-GCM using a locally generated, user-held key before " +
+      "they leave the machine, so the platform stores ciphertext it cannot read. The key lives " +
+      "only in the local config file and Obsideo has no copy: if the user loses it the data is " +
+      "unrecoverable, so tell them to back it up. Pass encrypt=false only when another tool must " +
+      "read the stored bytes directly (S3 interop); that stores plaintext. Zero-byte objects are " +
+      "rejected. Objects are replicated to 3 providers and verified on a continuous cryptographic " +
+      "challenge cycle.",
     inputSchema: {
       key: z.string().describe("Object key, e.g. backups/db-2026-07-19.sql.zst"),
       local_path: z.string().optional().describe("Path of a local file to upload"),
       content: z.string().optional().describe("Inline UTF-8 content (alternative to local_path)"),
-      encrypt: z.boolean().optional().describe("Encrypt client-side before upload"),
+      encrypt: z
+        .boolean()
+        .optional()
+        .describe("Defaults to true. Set false to store plaintext for S3 interop."),
     },
     // destructiveHint true: writing to an existing key overwrites it.
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
@@ -142,8 +150,10 @@ server.registerTool(
   {
     title: "Retrieve an object",
     description:
-      "Retrieve an object. Client-side-encrypted objects are decrypted automatically with " +
-      "the local key. Small text objects return inline; pass local_path for anything else.",
+      "Retrieve an object. Encrypted objects (the default for anything stored through this " +
+      "server) are decrypted automatically with the local key; retrieval from a machine without " +
+      "that key will fail, which is the intended property. Small text objects return inline; " +
+      "pass local_path for anything else.",
     inputSchema: {
       key: z.string(),
       local_path: z.string().optional().describe("Save to this path instead of returning inline"),
@@ -205,12 +215,14 @@ server.registerTool(
       "Independently verify that the network still holds an object, without downloading it. " +
       "Challenges each provider directly, recomputes the merkle root from your own copy of the " +
       "bytes, and checks each provider's cryptographic signature. Trusts nothing the coordinator " +
-      "says for the verdict. Pass local_path (your copy of the stored file) for the strong proof " +
-      "that they hold YOUR bytes; omit it to verify against the coordinator's recorded root. " +
-      "Returns how many providers proved possession right now and whether any returned bad data.",
+      "says for the verdict. Objects stored through this server verify at full strength with no " +
+      "extra arguments, because their commitment was recorded locally at upload time. Pass " +
+      "local_path (your copy of the stored file) to prove possession against a file on disk " +
+      "instead. Returns how many providers proved possession right now and whether any returned " +
+      "bad data.",
     inputSchema: {
       key: z.string().describe("Object key to verify, e.g. backups/db-2026-08-13.sql.zst"),
-      local_path: z.string().optional().describe("Your local copy of the stored bytes (enables the strong proof)"),
+      local_path: z.string().optional().describe("Your local copy of the stored bytes (optional; only needed for objects this server did not upload)"),
     },
     annotations: { readOnlyHint: true, openWorldHint: true },
   },
@@ -222,11 +234,23 @@ server.registerTool(
         `${r.proved} of ${r.holders} providers proved possession of ${r.bucket}/${key} right now` +
           (r.signed ? ` (${r.signed} returned a valid cryptographic signature)` : "") + "."
       );
-      lines.push(
-        r.strong
-          ? "Verified against the merkle root computed from YOUR local copy: they hold your exact bytes."
-          : "Verified against the coordinator's recorded root (pass local_path to prove they hold YOUR bytes)."
-      );
+      if (r.rootSource === "local-file") {
+        lines.push("Verified against the merkle root computed from YOUR local copy: they hold your exact bytes.");
+      } else if (r.rootSource === "recorded") {
+        lines.push(
+          "Verified against the merkle root this machine computed when it uploaded the object: " +
+            "they hold your exact bytes." +
+            (r.encryptedObject
+              ? " (The object is stored encrypted, so the stored bytes are ciphertext and will " +
+                "never match a plaintext file on disk. This is the correct check for it.)"
+              : "")
+        );
+      } else {
+        lines.push(
+          "Verified against the coordinator's recorded root only. This machine has no commitment " +
+            "of its own for this object, so pass local_path to prove they hold YOUR bytes."
+        );
+      }
       for (const p of r.results) {
         if (p.pass) lines.push(`  ok    ${p.address}  ${p.ms}ms  proved + signed`);
         else if (p.older_node) lines.push(`  note  ${p.address}  older node without client-challenge (still serves the coordinator proof cycle; not a failure)`);

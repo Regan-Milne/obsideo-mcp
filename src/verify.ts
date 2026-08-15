@@ -14,7 +14,7 @@
 
 import { createHash, createPublicKey, verify as edVerify, randomBytes, randomInt } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { loadConfig } from "./config.js";
+import { loadConfig, lookupRoot } from "./config.js";
 
 const CHUNK_SIZE = 1048576; // 1 MiB, frozen network-wide
 const SIG_DOMAIN = "obsideo-proof-response-v1";
@@ -50,6 +50,12 @@ interface Commitment {
   root: string;
   chunkHashes: string[] | null;
   chunkCount: number;
+}
+
+/** The merkle root of a buffer, in the network's frozen commitment scheme.
+ *  Used at upload time to record what we committed (see config.recordRoot). */
+export function commitRoot(data: Buffer): string {
+  return commit(data).root;
 }
 
 function commit(data: Buffer): Commitment {
@@ -141,6 +147,17 @@ async function httpJSON(url: string, opts: { method?: string; token?: string; bo
   return { status: res.status, json, text };
 }
 
+/** The coordinator advertises a root we did not commit to. Overwrite is the
+ *  common cause; a changed commitment is the alarming one. Say both. */
+function rootDrift(key: string, ours: string, theirs: string): string {
+  return (
+    `MISMATCH: the coordinator is advertising a different root than the one this machine ` +
+    `committed when it uploaded ${key} (ours ${ours.slice(0, 16)}…, coordinator ` +
+    `${theirs.slice(0, 16)}…). Most likely the object was overwritten since; the other ` +
+    "possibility is that the commitment was changed. Stop and investigate."
+  );
+}
+
 export interface VerifyProviderResult {
   provider_id: string;
   address: string;
@@ -153,11 +170,17 @@ export interface VerifyProviderResult {
   failed_proof?: boolean;
 }
 
+/** Where the root we verified against came from. Only "coordinator" is weak. */
+export type RootSource = "local-file" | "recorded" | "coordinator";
+
 export interface VerifyResult {
   bucket: string;
   key: string;
   root: string;
   strong: boolean; // true = verified against YOUR bytes; false = against the coordinator's root
+  rootSource: RootSource;
+  /** set when the local file is the plaintext of an object stored encrypted */
+  encryptedObject?: boolean;
   holders: number;
   proved: number;
   signed: number;
@@ -188,25 +211,65 @@ export async function verifyObject(key: string, localPath?: string): Promise<Ver
   }
   const holders: any[] = kit.json.holders || [];
 
+  // Our own commitment, written at upload time. Load it first: for an object
+  // stored encrypted it is the ONLY way to prove "they hold my bytes", because
+  // ciphertext cannot be reproduced from the plaintext (fresh IV per put).
+  const recorded = lookupRoot(bucket, key);
+  const coordRoot = String(kit.json.merkle_root ?? "");
+  const recordedUsable = !!recorded && recorded.root === coordRoot;
+
+  const weakCommitment = (): Commitment => ({
+    root: coordRoot,
+    chunkHashes: null,
+    chunkCount: Math.max(1, Math.ceil((kit.json.size_bytes || 1) / CHUNK_SIZE)),
+  });
+
   let commitment: Commitment;
   let strong = false;
+  let rootSource: RootSource = "coordinator";
+  let encryptedObject = false;
+
   if (localPath) {
     const data = readFileSync(localPath);
-    commitment = commit(data);
-    strong = true;
-    if (commitment.root !== kit.json.merkle_root) {
+    const local = commit(data);
+    if (local.root === coordRoot) {
+      // The file on disk IS the stored object. Strongest case: full chunk
+      // hashes, so every challenged chunk is checked against the user's bytes.
+      commitment = local;
+      strong = true;
+      rootSource = "local-file";
+    } else if (recordedUsable && recorded!.encrypted) {
+      // Expected: the object was encrypted before upload, so the stored bytes
+      // are ciphertext and will never match the plaintext file. Not an alarm.
+      commitment = weakCommitment();
+      commitment.root = recorded!.root;
+      strong = true;
+      rootSource = "recorded";
+      encryptedObject = true;
+      commitment.chunkCount = Math.max(1, Math.ceil(recorded!.bytes / CHUNK_SIZE));
+    } else if (recorded && recorded.root !== coordRoot) {
+      throw new Error(rootDrift(key, recorded.root, coordRoot));
+    } else {
       throw new Error(
         `MISMATCH: the root computed from ${localPath} does not match the coordinator's root ` +
-          `(yours ${commitment.root.slice(0, 16)}…, coordinator ${String(kit.json.merkle_root).slice(0, 16)}…). ` +
+          `(yours ${local.root.slice(0, 16)}…, coordinator ${coordRoot.slice(0, 16)}…). ` +
           "Either this is not the same file, or the commitment was changed. Stop and investigate."
       );
     }
+  } else if (recordedUsable) {
+    // No local file needed: we committed to these bytes ourselves at upload
+    // time and the coordinator is still advertising the same root.
+    commitment = weakCommitment();
+    commitment.root = recorded!.root;
+    commitment.chunkCount = Math.max(1, Math.ceil(recorded!.bytes / CHUNK_SIZE));
+    strong = true;
+    rootSource = "recorded";
+    encryptedObject = recorded!.encrypted;
   } else {
-    commitment = {
-      root: kit.json.merkle_root,
-      chunkHashes: null,
-      chunkCount: Math.max(1, Math.ceil((kit.json.size_bytes || 1) / CHUNK_SIZE)),
-    };
+    if (recorded && recorded.root !== coordRoot) {
+      throw new Error(rootDrift(key, recorded.root, coordRoot));
+    }
+    commitment = weakCommitment();
   }
 
   const results: VerifyProviderResult[] = [];
@@ -260,7 +323,8 @@ export async function verifyObject(key: string, localPath?: string): Promise<Ver
   // Older nodes, rate-limits, and unreachable providers are not alarms.
   const mismatch = results.some((r) => r.failed_proof);
   return {
-    bucket, key, root: commitment.root, strong,
+    bucket, key, root: commitment.root, strong, rootSource,
+    encryptedObject: encryptedObject || undefined,
     holders: holders.length,
     proved: results.filter((r) => r.pass).length,
     signed: results.filter((r) => r.signed).length,

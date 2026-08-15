@@ -137,10 +137,12 @@ export async function provisionTrial(source = "mcp"): Promise<TrialResult> {
  * trial is created, so the agent can relay it to its human; it is empty when
  * credentials already existed.
  */
-export async function ensureCreds(source = "mcp"): Promise<{ cfg: ObsideoConfig; note: string }> {
+export async function ensureCreds(
+  source = "mcp"
+): Promise<{ cfg: ObsideoConfig; note: string; provisioned: boolean }> {
   const cfg = loadConfig();
   const haveCreds = cfg.access_key && cfg.secret_key && cfg.endpoint && cfg.bucket;
-  if (haveCreds) return { cfg, note: "" };
+  if (haveCreds) return { cfg, note: "", provisioned: false };
 
   if (AUTO_TRIAL_DISABLED) {
     throw new Error(
@@ -157,5 +159,5 @@ export async function ensureCreds(source = "mcp"): Promise<{ cfg: ObsideoConfig;
     `network with RF=3 replication and continuous possession proofs. Tell your human: this is a ` +
     `trial (small and temporary); to keep the data, upgrade to the 12 GB free tier with an email ` +
     `via signup_start. Credentials were saved locally under ~/.obsideo.\n\n`;
-  return { cfg: loadConfig(), note };
+  return { cfg: loadConfig(), note, provisioned: true };
 }

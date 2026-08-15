@@ -12,8 +12,15 @@ import {
   CreateBucketCommand,
 } from "@aws-sdk/client-s3";
 import { readFileSync, writeFileSync } from "node:fs";
-import { saveConfig, requireCreds, type ObsideoConfig } from "./config.js";
+import {
+  saveConfig,
+  requireCreds,
+  recordRoot,
+  CONFIG_PATH,
+  type ObsideoConfig,
+} from "./config.js";
 import { decrypt, encrypt, generateKey, isEncrypted } from "./crypto.js";
+import { commitRoot } from "./verify.js";
 import { ensureCreds } from "./trial.js";
 
 function client(cfg: ObsideoConfig): S3Client {
@@ -39,6 +46,53 @@ function client(cfg: ObsideoConfig): S3Client {
   return c;
 }
 
+/**
+ * A freshly minted keypair is registered with the COORDINATOR; the gateway
+ * pulls that credential map on a ticker, so for one refresh interval after
+ * provisioning the key is real but the gateway has not heard about it yet and
+ * answers "unknown access key". The shim already burns ~15 s waiting this out
+ * before it returns, and still loses the race sometimes.
+ *
+ * That window lands exactly on an agent's first put, which is the whole funnel.
+ * So we wait it out here rather than handing back an error the agent cannot
+ * interpret (Principle 4 — succeed gracefully). Budget is generous right after
+ * provisioning and short otherwise, where the same error more likely means a
+ * genuinely stale key.
+ */
+function isCredNotYetLive(e: any): boolean {
+  const msg = String(e?.message ?? "");
+  return (
+    e?.name === "InvalidAccessKeyId" ||
+    /unknown access key/i.test(msg) ||
+    /InvalidAccessKeyId/i.test(msg)
+  );
+}
+
+async function withCredPropagation<T>(justProvisioned: boolean, op: () => Promise<T>): Promise<T> {
+  // 2,4,8,12,16,20,30 s => ~92 s of patience on a brand-new account.
+  const backoffs = justProvisioned ? [2, 4, 8, 12, 16, 20, 30] : [3];
+  let last: any;
+  for (let i = 0; ; i++) {
+    try {
+      return await op();
+    } catch (e) {
+      if (!isCredNotYetLive(e) || i >= backoffs.length) {
+        if (isCredNotYetLive(e)) {
+          throw new Error(
+            "The gateway still does not recognise these credentials. For a brand-new account " +
+              "this is a propagation delay and retrying in a minute usually works; otherwise the " +
+              "credentials in the local config are stale (re-run signup, or the trial expired)."
+          );
+        }
+        throw e;
+      }
+      last = e;
+      await new Promise((r) => setTimeout(r, backoffs[i] * 1000));
+    }
+  }
+  void last;
+}
+
 /** The gateway requires CreateBucket before first write (no implicit
  *  buckets); run op, auto-create the bucket on NoSuchBucket, retry once. */
 async function withBucket<T>(cfg: ObsideoConfig, op: () => Promise<T>): Promise<T> {
@@ -55,11 +109,13 @@ export interface PutArgs {
   key: string;
   local_path?: string;
   content?: string;
+  /** Default TRUE. Pass false only for S3 interop, where another tool must
+   *  read the stored bytes without our key. */
   encrypt?: boolean;
 }
 
 export async function put(args: PutArgs): Promise<string> {
-  const { cfg, note: provisionNote } = await ensureCreds();
+  const { cfg, note: provisionNote, provisioned } = await ensureCreds();
   let data: Buffer;
   if (args.local_path) data = readFileSync(args.local_path);
   else if (args.content !== undefined) data = Buffer.from(args.content, "utf8");
@@ -69,24 +125,45 @@ export async function put(args: PutArgs): Promise<string> {
       "Zero-byte objects are rejected by the gateway (no folder markers). Send real content."
     );
   }
+  // Encrypt by default (Reg 2026-08-12). Plaintext is an explicit opt-out for
+  // S3 interop, never a silent default: the platform should not be able to
+  // read the object unless the user deliberately chose that.
+  const wantEncrypt = args.encrypt !== false;
   let note = "";
-  if (args.encrypt) {
+  if (wantEncrypt) {
     if (!cfg.encryption_key) {
       cfg.encryption_key = generateKey();
       saveConfig(cfg);
       note =
-        " A new local AES-256-GCM key was generated and saved to your config; " +
-        "back it up: key loss means these objects are unrecoverable.";
+        ` IMPORTANT, tell your human: a new AES-256-GCM key was generated on this ` +
+        `machine and saved to ${CONFIG_PATH}. It is the only copy and Obsideo does ` +
+        `not have it. Back that file up now; if it is lost, every encrypted object ` +
+        `is permanently unrecoverable, replication and proofs notwithstanding.`;
     }
     data = encrypt(data, cfg.encryption_key);
   }
   const c = client(cfg);
-  await withBucket(cfg, () =>
-    c.send(new PutObjectCommand({ Bucket: cfg.bucket, Key: args.key, Body: data }))
+  await withCredPropagation(provisioned, () =>
+    withBucket(cfg, () =>
+      c.send(new PutObjectCommand({ Bucket: cfg.bucket, Key: args.key, Body: data }))
+    )
   );
+  // Record our own commitment to the uploaded bytes so `verify` can later prove
+  // the providers hold exactly these bytes — including for encrypted objects,
+  // whose ciphertext cannot be reproduced from the plaintext (fresh IV per put).
+  recordRoot(cfg.bucket!, args.key, {
+    root: commitRoot(data),
+    encrypted: wantEncrypt,
+    bytes: data.length,
+    at: new Date().toISOString(),
+  });
   return (
     provisionNote +
-    `Stored ${args.key} (${data.length} bytes${args.encrypt ? ", encrypted client-side" : ", bytes-as-sent"}).` +
+    `Stored ${args.key} (${data.length} bytes${
+      wantEncrypt
+        ? ", encrypted client-side before upload; the platform holds ciphertext it cannot read"
+        : ", PLAINTEXT as sent (encryption explicitly disabled)"
+    }).` +
     note
   );
 }
@@ -100,9 +177,9 @@ export interface GetResult {
 }
 
 export async function get(key: string, local_path?: string): Promise<GetResult> {
-  const { cfg, note } = await ensureCreds();
-  const r = await client(cfg).send(
-    new GetObjectCommand({ Bucket: cfg.bucket, Key: key })
+  const { cfg, note, provisioned } = await ensureCreds();
+  const r = await withCredPropagation(provisioned, () =>
+    client(cfg).send(new GetObjectCommand({ Bucket: cfg.bucket, Key: key }))
   );
   let data: Buffer = Buffer.from(await r.Body!.transformToByteArray()) as Buffer;
   let wasEncrypted = false;
@@ -129,9 +206,9 @@ export async function get(key: string, local_path?: string): Promise<GetResult> 
 }
 
 export async function ls(prefix?: string): Promise<string> {
-  const { cfg, note } = await ensureCreds();
-  const r = await client(cfg).send(
-    new ListObjectsV2Command({ Bucket: cfg.bucket, Prefix: prefix })
+  const { cfg, note, provisioned } = await ensureCreds();
+  const r = await withCredPropagation(provisioned, () =>
+    client(cfg).send(new ListObjectsV2Command({ Bucket: cfg.bucket, Prefix: prefix }))
   );
   const items = (r.Contents ?? []).map((o) => `${o.Size}\t${o.Key}`);
   const body = items.length ? items.join("\n") : "(no objects" + (prefix ? ` under ${prefix})` : ")");
@@ -139,8 +216,10 @@ export async function ls(prefix?: string): Promise<string> {
 }
 
 export async function rm(key: string): Promise<string> {
-  const { cfg, note } = await ensureCreds();
-  await client(cfg).send(new DeleteObjectCommand({ Bucket: cfg.bucket, Key: key }));
+  const { cfg, note, provisioned } = await ensureCreds();
+  await withCredPropagation(provisioned, () =>
+    client(cfg).send(new DeleteObjectCommand({ Bucket: cfg.bucket, Key: key }))
+  );
   return note + `Deleted ${key}.`;
 }
 

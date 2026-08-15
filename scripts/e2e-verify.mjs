@@ -1,9 +1,13 @@
-// Live e2e for the `verify` tool: fresh home (no config) -> put auto-creates a
-// trial -> verify proves possession client-side against production.
+// Live e2e for encrypt-by-default + the `verify` tool: fresh home (no config)
+// -> put auto-creates a trial -> objects are encrypted client-side -> verify
+// proves possession against production, client-side.
 // Run: node scripts/e2e-verify.mjs
+//
+// One trial account is provisioned per run. Note the agent name it prints and
+// exclude/purge it before reading conversion numbers.
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -27,36 +31,71 @@ async function call(name, args) {
   return { text: t, isError: !!r.isError };
 }
 
-// A file big enough to be interesting but single-chunk; keep our own copy for strong mode.
-const local = join(home, "payload.bin");
-writeFileSync(local, Buffer.from(("obsideo verify e2e " + new Date().toISOString() + " ").repeat(60)));
+function assert(cond, msg) {
+  if (!cond) throw new Error("ASSERT: " + msg);
+}
 
-// 1. put with no config -> auto-provisions a trial (now carrying the api_key)
+// A file big enough to be interesting but single-chunk; keep our own copy so we
+// can prove the plaintext path still supports local-file strong mode.
+const local = join(home, "payload.bin");
+const payload = Buffer.from(("obsideo verify e2e " + new Date().toISOString() + " ").repeat(60));
+writeFileSync(local, payload);
+
+// 1. put with no config -> auto-provisions a trial, and ENCRYPTS BY DEFAULT.
 const p = await call("put", { key: "verify-e2e/data.bin", local_path: local });
-if (p.isError) throw new Error("put failed: " + p.text);
+assert(!p.isError, "put failed: " + p.text);
+assert(/encrypted client-side/.test(p.text), "put should encrypt by default; said: " + p.text);
+assert(!/PLAINTEXT/.test(p.text), "default put must not store plaintext");
+
 const cfg = JSON.parse(readFileSync(join(home, "mcp.json"), "utf8"));
-if (!cfg.api_key || !cfg.api_key.startsWith("obs_")) throw new Error("api_key not saved to config: " + JSON.stringify(cfg.api_key));
+assert(cfg.api_key?.startsWith("obs_"), "api_key not saved to config: " + cfg.api_key);
+assert(!!cfg.encryption_key, "encryption key was not generated on the default put");
+assert(existsSync(join(home, "roots.json")), "roots.json commitment record was not written");
+const roots = JSON.parse(readFileSync(join(home, "roots.json"), "utf8"));
+const rec = roots[`${cfg.bucket}/verify-e2e/data.bin`];
+assert(rec?.encrypted === true, "commitment record should be marked encrypted");
+assert(rec.bytes > payload.length, "stored size should exceed plaintext (envelope + tag)");
 console.log("\nsaved api_key prefix:", cfg.api_key.slice(0, 12), "agent:", cfg.agent_name);
+
+// 2. a plaintext object, explicitly opted out, for the local-file proof path.
+const pp = await call("put", { key: "verify-e2e/plain.bin", local_path: local, encrypt: false });
+assert(!pp.isError, "plaintext put failed: " + pp.text);
+assert(/PLAINTEXT/.test(pp.text), "encrypt=false should say so plainly; said: " + pp.text);
 
 // Give replicas a moment to land + get challenge-ready.
 await new Promise((r) => setTimeout(r, 20000));
 
-// 2. verify STRONG (against our local copy)
-const v = await call("verify", { key: "verify-e2e/data.bin", local_path: local });
-if (v.isError) throw new Error("verify errored: " + v.text);
-if (!/proved possession/.test(v.text)) throw new Error("no possession result");
-if (/ALARM|failed the proof/.test(v.text)) throw new Error("unexpected integrity alarm on a good object");
+// 3. get round-trips the encrypted object back to the original bytes.
+const out = join(home, "roundtrip.bin");
+const g = await call("get", { key: "verify-e2e/data.bin", local_path: out });
+assert(!g.isError, "get failed: " + g.text);
+assert(/decrypted/.test(g.text), "get should report decryption");
+assert(readFileSync(out).equals(payload), "round-tripped bytes differ from the original");
+
+// 4. verify the ENCRYPTED object with no local_path: strong via the recorded
+//    commitment. This is the case that plain ciphertext-vs-plaintext hashing
+//    could not serve, and the reason the commitment record exists.
+const v = await call("verify", { key: "verify-e2e/data.bin" });
+assert(!v.isError, "verify errored: " + v.text);
+assert(!/ALARM|failed the proof/.test(v.text), "unexpected integrity alarm on a good object");
 const m = v.text.match(/^(\d+) of (\d+) providers proved/);
-if (!m || Number(m[1]) < 1) throw new Error("expected >=1 provider to prove possession, got: " + (m ? m[0] : "none"));
-if (!/YOUR local copy/.test(v.text)) throw new Error("expected strong-mode confirmation");
+assert(m && Number(m[1]) >= 1, "expected >=1 provider to prove possession, got: " + (m ? m[0] : "none"));
+assert(/when it uploaded the object/.test(v.text), "expected recorded-commitment strong mode");
+assert(/stored encrypted/.test(v.text), "expected the encrypted-object explanation");
 
-// 3. verify WEAK (no local copy) still works
-const vw = await call("verify", { key: "verify-e2e/data.bin" });
-if (vw.isError) throw new Error("weak verify errored");
-if (!/coordinator's recorded root/.test(vw.text)) throw new Error("expected weak-mode note");
+// 5. the same object with local_path pointing at the PLAINTEXT must not raise a
+//    false MISMATCH alarm — it must fall back to the recorded commitment.
+const ve = await call("verify", { key: "verify-e2e/data.bin", local_path: local });
+assert(!ve.isError, "verify with plaintext local_path must not error: " + ve.text);
+assert(/when it uploaded the object/.test(ve.text), "expected recorded-commitment fallback");
 
-// cleanup object (leave account for coordinator-side confirmation)
+// 6. the plaintext object still verifies against the local file directly.
+const vp = await call("verify", { key: "verify-e2e/plain.bin", local_path: local });
+assert(!vp.isError, "plaintext verify errored: " + vp.text);
+assert(/YOUR local copy/.test(vp.text), "expected local-file strong mode for the plaintext object");
+
 await call("rm", { key: "verify-e2e/data.bin" });
+await call("rm", { key: "verify-e2e/plain.bin" });
 
 console.log("\nVERIFY E2E PASS — agent", cfg.agent_name, "account", cfg.account_id);
 await client.close();
