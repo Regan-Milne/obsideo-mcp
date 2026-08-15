@@ -1,0 +1,82 @@
+# Nous-approved MCP catalog entry.
+# Presence in this directory = approval. Merged via PR review.
+#
+# Schema version 1.
+manifest_version: 1
+
+name: obsideo
+description: >-
+  Durable object storage for agent artifacts and backups, encrypted on your
+  machine before upload, with possession proofs the client verifies itself.
+source: https://github.com/Regan-Milne/obsideo-mcp
+
+# npm package, so transport.command IS the install (no `install:` block).
+# Pinned to an exact version rather than floating: a catalog entry should not
+# change what it runs when the publisher pushes a release.
+transport:
+  type: stdio
+  command: npx
+  args:
+    - "-y"
+    - "obsideo-mcp@0.5.0"
+
+# No credentials to collect. The server provisions its own account on first
+# use (see post_install) and stores the credentials locally under ~/.obsideo.
+auth:
+  type: none
+
+# `rm` is pruned from the default for the same reason n8n's mutating calls
+# are: a casual install should not come with an irreversible delete. `put`
+# stays because it is the point of the server; it can overwrite an existing
+# key, which its tool annotation declares. Users see the full list in the
+# install-time checklist and can opt into `rm`.
+tools:
+  default_enabled:
+    - put
+    - get
+    - ls
+    - verify
+    - usage
+    - trial
+    - signup_start
+    - signup_verify
+
+# Composer-suggestion triggers (desktop brand pills).
+suggest:
+  keywords:
+    - obsideo
+    - offsite backup
+    - verified storage
+  hosts:
+    - obsideo.io
+
+post_install: |
+  Read this before installing, because this server differs from most of the
+  catalog in one way worth knowing about.
+
+  ZERO SETUP, BY PROVISIONING AN ACCOUNT FOR YOU. There is no API key to paste.
+  The first storage call creates a free trial account on Obsideo's production
+  network automatically: a proof-of-work plus a ~10 second wait stand in for
+  identity, no email and no human in the loop. That account is 100 MB and lasts
+  about 7 days. Credentials are written to ~/.obsideo/mcp.json and go nowhere
+  else. If you would rather this never happen without you asking, set
+  OBSIDEO_NO_AUTO_TRIAL=1 and use the signup_start / signup_verify tools
+  instead (12 GB free tier, email required, no card, no expiry).
+
+  ENCRYPTED BY DEFAULT. Content is encrypted client-side with AES-256-GCM
+  before it leaves the machine, so the service stores ciphertext it cannot
+  read. Object keys and sizes are not encrypted. The key is generated locally
+  and written to ~/.obsideo/mcp.json; Obsideo has no copy and cannot recover
+  it. Back that file up. If it is lost the data is unrecoverable no matter how
+  many copies the network still holds. Pass encrypt=false per call if another
+  tool needs to read the stored bytes directly.
+
+  VERIFY DOES NOT TRUST THE VENDOR. The `verify` tool challenges each storage
+  provider directly, recomputes the merkle root, and checks each provider's
+  Ed25519 signature locally. It asks Obsideo's coordinator only which providers
+  to talk to; nothing the coordinator asserts is trusted for the verdict.
+
+  Objects are replicated to 3 providers and challenged on a continuous cycle.
+  This is object storage: not a database, not a query engine, not a CDN.
+
+  Start a new Hermes session to load the tools.
