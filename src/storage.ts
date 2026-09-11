@@ -16,6 +16,7 @@ import {
   saveConfig,
   requireCreds,
   recordRoot,
+  expandPath,
   CONFIG_PATH,
   type ObsideoConfig,
 } from "./config.js";
@@ -118,7 +119,7 @@ export interface PutArgs {
 export async function put(args: PutArgs): Promise<string> {
   const { cfg, note: provisionNote, provisioned } = await ensureCreds();
   let data: Buffer;
-  if (args.local_path) data = readFileSync(args.local_path);
+  if (args.local_path) data = readFileSync(expandPath(args.local_path));
   else if (args.content !== undefined) data = Buffer.from(args.content, "utf8");
   else throw new Error("Provide either local_path or content.");
   if (data.length === 0) {
@@ -195,8 +196,9 @@ export async function get(key: string, local_path?: string): Promise<GetResult> 
     wasEncrypted = true;
   }
   if (local_path) {
-    writeFileSync(local_path, data);
-    return { saved_to: local_path, bytes: data.length, encrypted: wasEncrypted, note };
+    const target = expandPath(local_path);
+    writeFileSync(target, data);
+    return { saved_to: target, bytes: data.length, encrypted: wasEncrypted, note };
   }
   if (data.length > 262144) {
     throw new Error(

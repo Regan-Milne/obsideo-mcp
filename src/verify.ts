@@ -14,7 +14,7 @@
 
 import { createHash, createPublicKey, verify as edVerify, randomBytes, randomInt } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { loadConfig, lookupRoot } from "./config.js";
+import { expandPath, loadConfig, lookupRoot } from "./config.js";
 
 const CHUNK_SIZE = 1048576; // 1 MiB, frozen network-wide
 const SIG_DOMAIN = "obsideo-proof-response-v1";
@@ -230,7 +230,7 @@ export async function verifyObject(key: string, localPath?: string): Promise<Ver
   let encryptedObject = false;
 
   if (localPath) {
-    const data = readFileSync(localPath);
+    const data = readFileSync(expandPath(localPath));
     const local = commit(data);
     if (local.root === coordRoot) {
       // The file on disk IS the stored object. Strongest case: full chunk

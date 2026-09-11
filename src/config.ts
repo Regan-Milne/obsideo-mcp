@@ -9,7 +9,21 @@
 
 import { mkdirSync, readFileSync, writeFileSync, chmodSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+
+/**
+ * Agents pass "~/x" and "$HOME/x" constantly and Node expands neither; the
+ * first Hermes run on 2026-09-11 died on exactly that. Used for every
+ * user-supplied local path (put, get, verify).
+ */
+export function expandPath(p: string): string {
+  const home = homedir();
+  if (p === "~") return home;
+  if (p.startsWith("~/") || p.startsWith("~\\")) return resolve(home, p.slice(2));
+  if (p.startsWith("$HOME/")) return resolve(home, p.slice(6));
+  if (p.startsWith("%USERPROFILE%")) return resolve(home, p.slice(13).replace(/^[\\/]/, ""));
+  return resolve(p);
+}
 
 export interface ObsideoConfig {
   email?: string;
