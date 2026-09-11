@@ -70,6 +70,22 @@ then Settings -> Extensions and drag the file in. No Node or npm setup needed.
 `claude mcp add obsideo -- npx -y obsideo-mcp`. Cursor/Cline: their MCP
 settings, same command.)
 
+**Hermes Agent:** add this to `~/.hermes/config.yaml` (Windows:
+`%LOCALAPPDATA%\hermes\config.yaml`), then run `/reload-mcp` in a session. The
+tools appear as `mcp_obsideo_put`, `mcp_obsideo_get`, `mcp_obsideo_verify` and
+so on. Node 18 or newer is required for `npx`.
+
+```yaml
+mcp_servers:
+  obsideo:
+    command: npx
+    args: ["-y", "obsideo-mcp"]
+```
+
+Add `tools: {exclude: [rm]}` under `obsideo` if you would rather the agent had
+no delete tool. First thing to try: ask Hermes to store its
+`~/.hermes/memories/MEMORY.md` on obsideo, then to verify it.
+
 ## Tools
 
 | Tool | What it does |
