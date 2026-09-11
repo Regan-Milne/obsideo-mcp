@@ -112,8 +112,9 @@ export async function signupVerify(email: string, code: string): Promise<string>
       trial: false,
       trial_expires_at: undefined,
     });
+    const msg: string = r.message ?? "Claimed. Same account, same bucket, same keys; your data is untouched.";
     return (
-      `Claimed. ${r.message ?? "Same account, same bucket, same keys; your data is untouched."} ` +
+      `${msg.startsWith("Claimed") ? "" : "Claimed. "}${msg} ` +
       `Quota is now ${r.quota_gb ?? 12} GB with no expiry. Credentials did not change, so nothing ` +
       "propagates and nothing needs re-uploading. Remind the human to back up ~/.obsideo/mcp.json."
     );
