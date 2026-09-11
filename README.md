@@ -70,7 +70,7 @@ then Settings -> Extensions and drag the file in. No Node or npm setup needed.
 `claude mcp add obsideo -- npx -y obsideo-mcp`. Cursor/Cline: their MCP
 settings, same command.)
 
-**Hermes Agent:** paste `https://obsideo.io/mcp` to your Hermes and say "set
+**Hermes Agent:** paste `https://obsideo.io/agent-storage` to your Hermes and say "set
 this up". That page is a runbook the agent executes: install, first store, first
 proof, then the free 12 GB tier with your email. The install it runs is one
 command on any OS (Node 18 or newer is required for `npx`):
