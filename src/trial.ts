@@ -157,7 +157,8 @@ export async function ensureCreds(
     `No account was configured, so a free no-email trial was created: agent "${t.agent_name}", ` +
     `${t.quota_mb} MB, expires ${t.expires_at ?? "in ~7 days"}. It lives on the production ` +
     `network with RF=3 replication and continuous possession proofs. Tell your human: this is a ` +
-    `trial (small and temporary); to keep the data, upgrade to the 12 GB free tier with an email ` +
-    `via signup_start. Credentials were saved locally under ~/.obsideo.\n\n`;
+    `trial (small and temporary); to keep the data, claim it with an email via signup_start ` +
+    `(12 GB free, no card, no expiry; same account, nothing moves). Credentials were saved ` +
+    `locally under ~/.obsideo.\n\n`;
   return { cfg: loadConfig(), note, provisioned: true };
 }

@@ -11,7 +11,9 @@ no CAPTCHA, no expiry.
 [Obsideo](https://obsideo.io) is S3-compatible object storage where every
 stored object is replicated to 3 providers and challenged with chunk-level
 merkle proofs on a continuous cycle; providers are paid only for proofs
-they pass. Paid tier: $15/TB-month, egress included.
+they pass. 12 GB free with an email, no card. Paid plans are 200 GB blocks at
+$5/month each by card (Stripe), started from the `upgrade` tool and paid on
+Stripe's own page; the plan never changes size without the human's agreement.
 
 ## Privacy posture (read this first)
 
@@ -73,14 +75,27 @@ settings, same command.)
 | Tool | What it does |
 |---|---|
 | `trial` | Create an instant no-email account (100 MB, ~7 days, proof-of-work, no human needed). Usually unnecessary: storage tools auto-create one on first use |
-| `signup_start` | Email a 6-digit code (12 GB free tier; real inboxes only, refusals are labeled) |
-| `signup_verify` | Complete signup; generates the signing keypair locally, stores credentials |
+| `signup_start` | Email a 6-digit code (12 GB free tier; real inboxes only, refusals are labeled). With a trial configured this **claims it in place**: same account, keys and data, quota rises |
+| `signup_verify` | Complete signup or the claim. A new account generates the signing keypair locally and stores credentials; a claim changes nothing but the quota |
 | `put` | Store a file or inline content, encrypted client-side by default (`encrypt: false` opts out). Auto-creates a trial account if none is configured |
 | `get` | Retrieve an object (auto-decrypts with the local key) |
 | `ls` | List objects, optionally by prefix |
 | `rm` | Delete an object |
 | `verify` | Prove the network still holds an object, without downloading it |
-| `usage` | Storage used vs quota |
+| `usage` | Storage used vs quota, plus the plan line |
+| `plan` | Free tier or paid blocks, status, period end, any offer waiting for the human |
+| `upgrade` | Stripe checkout link for N x 200 GB blocks. Charges nothing; the human pays on Stripe's page. Never changes an existing plan |
+| `portal` | Stripe portal link: cancel, change card, invoices |
+
+### Paying, and what an agent is allowed to do
+
+`upgrade` returns a link. That is all it does. The human opens it, sees the exact
+monthly amount, and pays or closes the tab; the quota rises after payment. An
+existing plan is never resized from this server: near the top of a tier Obsideo
+emails an agree link, and the human's click is the only thing that changes the
+bill. `portal` returns the Stripe portal link for cancelling, changing the card
+and downloading invoices. Cancelling keeps everything stored and readable; the
+account returns to its free quota at the end of the paid period.
 
 ### `verify`
 

@@ -22,6 +22,7 @@ import {
 import { decrypt, encrypt, generateKey, isEncrypted } from "./crypto.js";
 import { commitRoot } from "./verify.js";
 import { ensureCreds } from "./trial.js";
+import { describePlan } from "./billing.js";
 
 function client(cfg: ObsideoConfig): S3Client {
   requireCreds(cfg);
@@ -231,9 +232,11 @@ export async function usage(): Promise<string> {
   });
   const json: any = await resp.json();
   if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${JSON.stringify(json.detail ?? json)}`);
+  const billing = json.billing ? "\n" + describePlan(json.billing, cfg) : "";
   return (
     note +
     `Used ${(json.used_bytes / 1e9).toFixed(3)} GB of ${json.quota_gb} GB ` +
-    `(${(json.percent_used * 100).toFixed(1)}%). Account ${json.account_id}.`
+    `(${(json.percent_used * 100).toFixed(1)}%). Account ${json.account_id}.` +
+    billing
   );
 }

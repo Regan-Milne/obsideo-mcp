@@ -1,9 +1,15 @@
 /**
  * Self-serve signup against signup.obsideo.io — email OTP only, no card.
  *
- * The Ed25519 account signing keypair is generated HERE, on the user's
- * machine; only the public half is ever sent. The private key is written
- * to ~/.obsideo/signing.pem.
+ * Two flows share the same two tools:
+ *   - CLAIM (default when a no-email trial is configured): the trial is
+ *     promoted to the 12 GB tier IN PLACE. Same account id, bucket, keys and
+ *     data; only the quota and the identity change. Authenticated by the
+ *     trial's own account token.
+ *   - AUTH (no account configured, or `abandon_trial`): a fresh account for
+ *     that email. The Ed25519 account signing keypair is generated HERE, on
+ *     the user's machine; only the public half is ever sent. The private key
+ *     is written to ~/.obsideo/signing.pem.
  */
 
 import { generateKeyPairSync } from "node:crypto";
@@ -12,10 +18,13 @@ import { CONFIG_DIR, SIGNING_KEY_PATH, loadConfig, saveConfig } from "./config.j
 
 const SIGNUP_BASE = process.env.OBSIDEO_SIGNUP_URL ?? "https://signup.obsideo.io";
 
-async function post(path: string, body: unknown): Promise<any> {
+async function post(path: string, body: unknown, bearer?: string): Promise<any> {
   const resp = await fetch(SIGNUP_BASE + path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+    },
     body: JSON.stringify(body),
   });
   const text = await resp.text();
@@ -27,15 +36,49 @@ async function post(path: string, body: unknown): Promise<any> {
   }
   if (!resp.ok) {
     // The shim's refusals are labeled (placeholder_email, rate_limited with
-    // retry_after_seconds, disposable_email_not_supported...). Pass the
+    // retry_after_seconds, disposable_email, email_in_use...). Pass the
     // label through verbatim so the calling agent can act on it.
     throw new Error(`HTTP ${resp.status}: ${JSON.stringify(json.detail ?? json)}`);
   }
   return json;
 }
 
-export async function signupStart(email: string, source?: string): Promise<string> {
+function claimable(): boolean {
+  const cfg = loadConfig();
+  return !!(cfg.trial && cfg.account_token);
+}
+
+export async function signupStart(
+  email: string,
+  source?: string,
+  abandonTrial = false
+): Promise<string> {
+  const cfg = loadConfig();
+  if (claimable() && !abandonTrial) {
+    try {
+      const r = await post("/v1/trial/claim/start", { email }, cfg.account_token);
+      saveConfig({ ...loadConfig(), pending_signup_mode: "claim" });
+      return (
+        `Verification code sent to ${r.email ?? email}. Then call signup_verify with the code. ` +
+        `This CLAIMS the current trial in place: ${r.keeps ?? "same account, bucket, keys and data; only the quota rises"}` +
+        ` (to ${r.quota_after_gb ?? 12} GB).`
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("email_in_use")) {
+        throw new Error(
+          msg +
+            " That email already has its own Obsideo account, and a trial cannot be merged into it. " +
+            "Either use a different email to claim this trial (keeps the trial's data), or call " +
+            "signup_start again with abandon_trial=true to sign in to the existing account instead " +
+            "(this trial's data stays on the trial account, which expires)."
+        );
+      }
+      throw e;
+    }
+  }
   const r = await post("/v1/auth/start", { email, source: source ?? "mcp" });
+  saveConfig({ ...loadConfig(), pending_signup_mode: "auth" });
   return r.message ?? "Verification code sent. Check the inbox (and spam).";
 }
 
@@ -57,15 +100,35 @@ export function generateSigningKey(): string {
 }
 
 export async function signupVerify(email: string, code: string): Promise<string> {
+  const cfg = loadConfig();
+  const mode = cfg.pending_signup_mode ?? (claimable() ? "claim" : "auth");
+
+  if (mode === "claim" && claimable()) {
+    const r = await post("/v1/trial/claim/verify", { email, code }, cfg.account_token);
+    const { pending_signup_mode: _drop, ...rest } = loadConfig();
+    saveConfig({
+      ...rest,
+      email: r.email ?? email,
+      trial: false,
+      trial_expires_at: undefined,
+    });
+    return (
+      `Claimed. ${r.message ?? "Same account, same bucket, same keys; your data is untouched."} ` +
+      `Quota is now ${r.quota_gb ?? 12} GB with no expiry. Credentials did not change, so nothing ` +
+      "propagates and nothing needs re-uploading. Remind the human to back up ~/.obsideo/mcp.json."
+    );
+  }
+
   const pubkey = generateSigningKey();
   const r = await post("/v1/auth/verify", {
     email,
     code,
     customer_signing_public_key: pubkey,
   });
-  const cfg = loadConfig();
+  const { pending_signup_mode: _drop, trial: _t, agent_name: _a, trial_expires_at: _e, ...rest } =
+    loadConfig();
   saveConfig({
-    ...cfg,
+    ...rest,
     email,
     account_id: r.account_id,
     account_token: r.account_token,

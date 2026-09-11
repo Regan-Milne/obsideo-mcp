@@ -18,7 +18,7 @@ transport:
   command: npx
   args:
     - "-y"
-    - "obsideo-mcp@0.5.0"
+    - "obsideo-mcp@0.6.0"
 
 # No credentials to collect. The server provisions its own account on first
 # use (see post_install) and stores the credentials locally under ~/.obsideo.
@@ -37,6 +37,9 @@ tools:
     - ls
     - verify
     - usage
+    - plan
+    - upgrade
+    - portal
     - trial
     - signup_start
     - signup_verify
@@ -61,7 +64,8 @@ post_install: |
   about 7 days. Credentials are written to ~/.obsideo/mcp.json and go nowhere
   else. If you would rather this never happen without you asking, set
   OBSIDEO_NO_AUTO_TRIAL=1 and use the signup_start / signup_verify tools
-  instead (12 GB free tier, email required, no card, no expiry).
+  instead (12 GB free tier, email required, no card, no expiry). A trial is
+  claimed in place with signup_start: same account, keys and data.
 
   ENCRYPTED BY DEFAULT. Content is encrypted client-side with AES-256-GCM
   before it leaves the machine, so the service stores ciphertext it cannot
@@ -76,7 +80,16 @@ post_install: |
   Ed25519 signature locally. It asks Obsideo's coordinator only which providers
   to talk to; nothing the coordinator asserts is trusted for the verdict.
 
+  PAYING IS THE HUMAN'S CLICK, NEVER THE AGENT'S. 12 GB is free. `upgrade`
+  returns a Stripe checkout link for 200 GB blocks at $5/month each and
+  charges nothing; the person opens it and pays on Stripe's page. The server
+  cannot resize an existing plan: only the agree link Obsideo emails near the
+  top of a tier does that, and only when the person clicks it. `portal`
+  returns the Stripe portal link (cancel, card, invoices).
+
   Objects are replicated to 3 providers and challenged on a continuous cycle.
-  This is object storage: not a database, not a query engine, not a CDN.
+  This is object storage: not a database, not a query engine, not a CDN, and
+  not a memory provider; it is where an agent's files and its `hermes backup`
+  archive can live off the disk it runs on.
 
   Start a new Hermes session to load the tools.

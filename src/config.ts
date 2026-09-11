@@ -30,6 +30,8 @@ export interface ObsideoConfig {
   agent_name?: string;
   /** ISO expiry of a trial account (informational) */
   trial_expires_at?: string;
+  /** which signup flow signup_start began, so signup_verify finishes the same one */
+  pending_signup_mode?: "claim" | "auth";
 }
 
 export const CONFIG_DIR = process.env.OBSIDEO_MCP_HOME ?? join(homedir(), ".obsideo");

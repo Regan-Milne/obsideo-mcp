@@ -15,7 +15,7 @@ web dashboard and CLI with one-click install.
 ## To submit
 
 1. Publish the pinned version to npm first. The manifest pins an exact version
-   (`obsideo-mcp@0.5.0`) rather than floating, so a catalog install never
+   (`obsideo-mcp@0.6.0`) rather than floating, so a catalog install never
    changes what it runs when we publish a release. That version must exist
    before the entry can be reviewed.
 2. Fork `NousResearch/hermes-agent`, add this file at
@@ -24,10 +24,13 @@ web dashboard and CLI with one-click install.
 
 ## Notes for review
 
-The catalog's 20 existing entries are all established SaaS brands (Stripe,
-Notion, Linear, Supabase, Figma, ...) and there is **no storage or backup entry
-at all**, which is the opening. The two things a reviewer will reasonably stop
-on are handled explicitly in `post_install`:
+The catalog (68 entries as of 2026-09-11, including `dropbox` as a remote OAuth
+file store) has no entry that is encrypted on the user's machine before upload,
+none whose durability the client can verify itself, and none positioned as an
+offsite home for the agent's own `hermes backup` archive. That is the pitch;
+"no storage entry exists" stopped being true in August and must not be argued.
+The three things a reviewer will reasonably stop on are handled explicitly in
+`post_install`:
 
 - **It provisions an account by itself.** First storage call creates a free
   no-email trial. That is the zero-setup property and also the thing a reviewer
@@ -35,3 +38,7 @@ on are handled explicitly in `post_install`:
 - **`rm` is pruned from `tools.default_enabled`**, following the precedent set
   by the `n8n` entry: a casual install should not arrive with an irreversible
   delete. Users can opt into it from the install-time checklist.
+- **It can hand the person a payment link.** `upgrade` returns a Stripe
+  checkout URL and charges nothing; the human pays on Stripe's page. The server
+  has no code path that resizes an existing plan (no stepup tool on purpose),
+  so an agent cannot grow a bill on its human's behalf.

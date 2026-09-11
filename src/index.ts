@@ -17,8 +17,9 @@ import { signupStart, signupVerify } from "./signup.js";
 import { provisionTrial } from "./trial.js";
 import { get, ls, put, rm, usage } from "./storage.js";
 import { verifyObject } from "./verify.js";
+import { plan, portal, upgrade } from "./billing.js";
 
-const server = new McpServer({ name: "obsideo", version: "0.5.0" });
+const server = new McpServer({ name: "obsideo", version: "0.6.0" });
 
 function text(t: string) {
   return { content: [{ type: "text" as const, text: t }] };
@@ -41,7 +42,8 @@ server.registerTool(
       "the production network (100 MB, about 7 days, RF=3 replication, continuous possession " +
       "proofs) and saves credentials locally. You usually do NOT need to call this: the first " +
       "put/get/ls/usage auto-creates a trial if no account is configured. Call it to provision " +
-      "explicitly. To keep data beyond the trial, upgrade to the 12 GB email tier via signup_start.",
+      "explicitly. To keep data beyond the trial, claim it with an email via signup_start " +
+      "(same account and data, quota rises to 12 GB).",
     inputSchema: {
       source: z.string().optional().describe("Where you found Obsideo (defaults to 'mcp')"),
     },
@@ -56,7 +58,7 @@ server.registerTool(
           "Objects are encrypted client-side by default with a key generated on this machine " +
           "and held only here; back up ~/.obsideo/mcp.json or the data cannot be recovered. " +
           "This is a small, temporary account on the production network; to keep the data, " +
-          "upgrade to the 12 GB free tier with an email via signup_start."
+          "claim it with an email via signup_start (12 GB free, same account, nothing moves)."
       );
     } catch (e) {
       return errText(e);
@@ -67,20 +69,29 @@ server.registerTool(
 server.registerTool(
   "signup_start",
   {
-    title: "Start Obsideo signup",
+    title: "Start Obsideo signup (or claim the trial)",
     description:
       "Start Obsideo signup: emails a 6-digit verification code (12 GB free tier, no card, " +
-      "no expiry). Use a real inbox you or your human can read; documentation placeholders " +
-      "and disposable domains are refused with labeled errors. Then call signup_verify.",
+      "no expiry). If a no-email trial is configured on this machine, this CLAIMS it in place: " +
+      "same account, bucket, keys and data, only the quota rises. Otherwise it creates a new " +
+      "account for the email. Use a real inbox you or your human can read; documentation " +
+      "placeholders and disposable domains are refused with labeled errors. Then call signup_verify.",
     inputSchema: {
       email: z.string().describe("Real email address; it is the account identity"),
       source: z.string().optional().describe("Where you found Obsideo (defaults to 'mcp')"),
+      abandon_trial: z
+        .boolean()
+        .optional()
+        .describe(
+          "Only when the email already has its own account (email_in_use): sign in to that account " +
+            "instead of claiming; the trial and its data are left behind."
+        ),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },
-  async ({ email, source }) => {
+  async ({ email, source, abandon_trial }) => {
     try {
-      return text(await signupStart(email, source));
+      return text(await signupStart(email, source, abandon_trial ?? false));
     } catch (e) {
       return errText(e);
     }
@@ -92,10 +103,11 @@ server.registerTool(
   {
     title: "Complete Obsideo signup",
     description:
-      "Complete signup with the emailed code. Generates the Ed25519 account signing keypair " +
-      "locally (only the public half is sent), stores S3 " +
-      "credentials in ~/.obsideo/mcp.json. Re-running rotates credentials and keypair " +
-      "with no overlap; do not re-run to retry.",
+      "Complete signup with the emailed code. When claiming a trial, nothing but the quota and " +
+      "the identity changes (credentials stay valid, no propagation wait). For a new account, " +
+      "generates the Ed25519 account signing keypair locally (only the public half is sent) and " +
+      "stores S3 credentials in ~/.obsideo/mcp.json; re-running that path rotates credentials " +
+      "and keypair with no overlap, so do not re-run to retry.",
     inputSchema: {
       email: z.string(),
       code: z.string().describe("The 6-digit code from the email"),
@@ -280,6 +292,76 @@ server.registerTool(
   async () => {
     try {
       return text(await usage());
+    } catch (e) {
+      return errText(e);
+    }
+  }
+);
+
+server.registerTool(
+  "plan",
+  {
+    title: "Show the paid plan",
+    description:
+      "Show the account's plan: free tier or paid blocks (200 GB per block, $5/month each), " +
+      "status, period end, and any upgrade offer waiting for the human's agreement. Never " +
+      "changes anything and never contacts Stripe.",
+    inputSchema: {},
+    annotations: { readOnlyHint: true, openWorldHint: true },
+  },
+  async () => {
+    try {
+      return text(await plan());
+    } catch (e) {
+      return errText(e);
+    }
+  }
+);
+
+server.registerTool(
+  "upgrade",
+  {
+    title: "Get a checkout link for a paid plan",
+    description:
+      "Get a Stripe-hosted checkout link for a paid plan of N x 200 GB blocks at $5/month per " +
+      "block. This tool charges NOTHING and changes nothing: the human opens the link and pays " +
+      "on Stripe's page, and the quota rises after payment. Call it only when the human has " +
+      "asked for more space, and hand the link back to them; do not open or submit it yourself. " +
+      "If the account already has a paid plan this returns the plan instead (plan size is never " +
+      "changed from here; only the human's click on Obsideo's emailed agree link does that).",
+    inputSchema: {
+      blocks: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe("Number of 200 GB blocks (default 1)"),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  async ({ blocks }) => {
+    try {
+      return text(await upgrade(blocks ?? 1));
+    } catch (e) {
+      return errText(e);
+    }
+  }
+);
+
+server.registerTool(
+  "portal",
+  {
+    title: "Get the billing portal link",
+    description:
+      "Get the Stripe Customer Portal link for a paid plan: cancel, change card, download " +
+      "invoices. For the human to open. Cancelling keeps everything stored and readable; the " +
+      "account returns to its free quota at the end of the paid period.",
+    inputSchema: {},
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  async () => {
+    try {
+      return text(await portal());
     } catch (e) {
       return errText(e);
     }
