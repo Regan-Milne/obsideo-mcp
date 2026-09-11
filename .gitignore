@@ -4,3 +4,9 @@ dist-test/
 .tools/
 mcpb/server/
 *.mcpb
+
+# never commit a credential home (a mangled OBSIDEO_MCP_HOME once landed inside the repo)
+*.pem
+mcp.json
+roots.json
+Users*/

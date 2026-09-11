@@ -93,6 +93,23 @@ export interface TrialResult {
  * returns the human-facing summary. Throws with the shim's labeled error on
  * pool-full / rate-limit / disabled.
  */
+/**
+ * Refuse to replace a working account by accident. The 2026-09-11 Hermes run
+ * called `trial` on a machine that already had a claimed 12 GB account and
+ * silently swapped its credentials and signing key for a fresh 100 MB trial.
+ * Explicit replacement stays possible; accidental replacement does not.
+ */
+export function refuseIfConfigured(replace: boolean): void {
+  const cfg = loadConfig();
+  if (replace || !(cfg.access_key && cfg.account_token)) return;
+  throw new Error(
+    `An Obsideo account is already configured on this machine (${cfg.account_id ?? "unknown"}, ` +
+      `${cfg.trial ? "trial" : cfg.email ?? "claimed"}). Creating a trial now would REPLACE its ` +
+      "credentials and signing key in the local config. Use the existing account (call `usage`), " +
+      "or pass replace=true only if the human explicitly wants a fresh, separate account."
+  );
+}
+
 export async function provisionTrial(source = "mcp"): Promise<TrialResult> {
   const start = await post("/v1/trial/start", { source });
   const t0 = Date.now();

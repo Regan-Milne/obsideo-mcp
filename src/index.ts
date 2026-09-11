@@ -14,12 +14,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { signupStart, signupVerify } from "./signup.js";
-import { provisionTrial } from "./trial.js";
+import { provisionTrial, refuseIfConfigured } from "./trial.js";
 import { get, ls, put, rm, usage } from "./storage.js";
 import { verifyObject } from "./verify.js";
 import { plan, portal, upgrade } from "./billing.js";
 
-const server = new McpServer({ name: "obsideo", version: "0.6.0" });
+const server = new McpServer({ name: "obsideo", version: "0.6.1" });
 
 function text(t: string) {
   return { content: [{ type: "text" as const, text: t }] };
@@ -46,11 +46,19 @@ server.registerTool(
       "(same account and data, quota rises to 12 GB).",
     inputSchema: {
       source: z.string().optional().describe("Where you found Obsideo (defaults to 'mcp')"),
+      replace: z
+        .boolean()
+        .optional()
+        .describe(
+          "Only if the human explicitly wants a fresh, separate account: replace the account already " +
+            "configured on this machine. Without it, this tool refuses when an account exists."
+        ),
     },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
   },
-  async ({ source }) => {
+  async ({ source, replace }) => {
     try {
+      refuseIfConfigured(replace ?? false);
       const t = await provisionTrial(source);
       return text(
         `Trial account created: agent "${t.agent_name}", ${t.quota_mb} MB, expires ` +
