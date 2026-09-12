@@ -142,7 +142,12 @@ hash-exact (sha256) and labeled-error passthrough from the signup service.
 
 ## License
 
-MIT
+PolyForm Shield 1.0.0 from version 0.6.2 (see `LICENSE`). In plain terms: you may
+use, read, audit, modify and redistribute this server for any purpose except
+building a product or service that competes with Obsideo. That keeps the
+client auditable, which the product depends on, without handing the work to a
+competitor. Versions 0.6.1 and earlier remain under MIT as published. The
+storage provider node (`obsideo-provider`) is and stays MIT.
 
 ## Privacy Policy
 

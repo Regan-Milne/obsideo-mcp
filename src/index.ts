@@ -19,7 +19,7 @@ import { get, ls, put, rm, usage } from "./storage.js";
 import { verifyObject } from "./verify.js";
 import { plan, portal, upgrade } from "./billing.js";
 
-const server = new McpServer({ name: "obsideo", version: "0.6.1" });
+const server = new McpServer({ name: "obsideo", version: "0.6.2" });
 
 function text(t: string) {
   return { content: [{ type: "text" as const, text: t }] };
