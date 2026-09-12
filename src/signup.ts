@@ -12,6 +12,7 @@
  *     is written to ~/.obsideo/signing.pem.
  */
 
+import { fetchOnce } from "./net.js";
 import { generateKeyPairSync } from "node:crypto";
 import { writeFileSync, chmodSync, mkdirSync } from "node:fs";
 import { CONFIG_DIR, SIGNING_KEY_PATH, loadConfig, saveConfig } from "./config.js";
@@ -19,7 +20,7 @@ import { CONFIG_DIR, SIGNING_KEY_PATH, loadConfig, saveConfig } from "./config.j
 const SIGNUP_BASE = process.env.OBSIDEO_SIGNUP_URL ?? "https://signup.obsideo.io";
 
 async function post(path: string, body: unknown, bearer?: string): Promise<any> {
-  const resp = await fetch(SIGNUP_BASE + path, {
+  const resp = await fetchOnce(SIGNUP_BASE + path, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

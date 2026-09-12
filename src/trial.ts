@@ -13,6 +13,7 @@
  * sent); credentials land in ~/.obsideo/mcp.json exactly like the email flow.
  */
 
+import { fetchOnce } from "./net.js";
 import { createHash } from "node:crypto";
 import { generateSigningKey } from "./signup.js";
 import { loadConfig, saveConfig, type ObsideoConfig } from "./config.js";
@@ -26,7 +27,7 @@ const AUTO_TRIAL_DISABLED = ["1", "true", "yes", "on"].includes(
 );
 
 async function post(path: string, body: unknown): Promise<any> {
-  const resp = await fetch(SIGNUP_BASE + path, {
+  const resp = await fetchOnce(SIGNUP_BASE + path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

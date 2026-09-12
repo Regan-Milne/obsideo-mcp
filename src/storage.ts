@@ -3,6 +3,7 @@
  * exactly as sent). Optional encrypt-first via crypto.ts.
  */
 
+import { fetchOnce } from "./net.js";
 import {
   S3Client,
   PutObjectCommand,
@@ -229,7 +230,7 @@ export async function rm(key: string): Promise<string> {
 export async function usage(): Promise<string> {
   const { cfg, note } = await ensureCreds();
   const base = process.env.OBSIDEO_SIGNUP_URL ?? "https://signup.obsideo.io";
-  const resp = await fetch(base + "/v1/account/usage", {
+  const resp = await fetchOnce(base + "/v1/account/usage", {
     headers: { Authorization: `Bearer ${cfg.account_token}` },
   });
   const json: any = await resp.json();
