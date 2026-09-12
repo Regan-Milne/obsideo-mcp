@@ -134,11 +134,26 @@ Obsideo stores objects and backup artifacts.
 Full integration contract (per-step postconditions, error table):
 [obsideo.io/agents.md](https://obsideo.io/agents.md)
 
+## Transport
+
+From 0.7.0, `put` / `get` / `ls` / `rm` talk to the coordinator and to the
+storage providers it names, the same path `verify` has always used. There is
+no S3 gateway hop and no wait for freshly minted credentials to propagate: the
+account's coordinator API key is valid the moment signup returns, so the first
+`put` after signup works at once (measured 0.8 s on production). Configs that
+predate the coordinator key, or `OBSIDEO_TRANSPORT=s3`, keep using the S3
+gateway with the SigV4 keypair; nothing about stored objects changes between
+the two, and the same S3 credentials still work with rclone, boto3 and any
+other S3 client.
+
 ## Verified
 
-Every tool in this server was exercised end to end against the production
-gateway before release, including an encrypted put/get roundtrip verified
-hash-exact (sha256) and labeled-error passthrough from the signup service.
+Every tool in this server is exercised end to end against production before
+release: a freshly minted trial, then an encrypted put / byte-exact get / ls /
+rm over the direct transport (`test/e2e_prod.mjs`, which identifies itself so
+it is excluded from funnel measurement), plus labeled-error passthrough from
+the signup service. Unit tests run the transport against mock coordinator and
+provider servers (`npm test`).
 
 ## License
 

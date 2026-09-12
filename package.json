@@ -1,6 +1,6 @@
 {
   "name": "obsideo-mcp",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "mcpName": "io.obsideo/mcp",
   "description": "MCP server for Obsideo: S3-compatible storage that is encrypted client-side by default, with continuous cryptographic possession proofs you can verify yourself. Instant no-email trial, self-serve signup (12 GB free, no card), put/get/ls/rm/verify/usage tools. Runs on YOUR machine; credentials and keys never leave it.",
   "license": "PolyForm-Shield-1.0.0",
@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "build": "tsc && node -e \"const fs=require('fs');const p='dist/index.js';fs.writeFileSync(p,'#!/usr/bin/env node\\n'+fs.readFileSync(p,'utf8'))\"",
-    "test": "node --test dist-test/"
+    "test": "node --test \"test/**/*.test.mjs\""
   },
   "keywords": [
     "mcp",

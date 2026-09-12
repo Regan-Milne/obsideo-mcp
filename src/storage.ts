@@ -22,7 +22,20 @@ import {
 } from "./config.js";
 import { decrypt, encrypt, generateKey, isEncrypted } from "./crypto.js";
 import { commitRoot } from "./verify.js";
+import { commitment, deleteDirect, getDirect, listDirect, putDirect } from "./direct.js";
 import { ensureCreds } from "./trial.js";
+
+/**
+ * Transport selection. "direct" = coordinator + providers (see direct.ts), the
+ * default whenever the config carries a coordinator api_key, which every
+ * self-serve signup does. "s3" = the gateway with SigV4 keys, kept for configs
+ * that predate api_key and as an explicit escape hatch (OBSIDEO_TRANSPORT=s3).
+ */
+function transport(cfg: ObsideoConfig): "direct" | "s3" {
+  const forced = (process.env.OBSIDEO_TRANSPORT ?? "").toLowerCase();
+  if (forced === "s3" || forced === "direct") return forced;
+  return cfg.api_key && cfg.account_id && cfg.bucket ? "direct" : "s3";
+}
 import { describePlan } from "./billing.js";
 
 function client(cfg: ObsideoConfig): S3Client {
@@ -144,17 +157,32 @@ export async function put(args: PutArgs): Promise<string> {
     }
     data = encrypt(data, cfg.encryption_key);
   }
-  const c = client(cfg);
-  await withCredPropagation(provisioned, () =>
-    withBucket(cfg, () =>
-      c.send(new PutObjectCommand({ Bucket: cfg.bucket, Key: args.key, Body: data }))
-    )
-  );
+  let root: string;
+  let placement = "";
+  if (transport(cfg) === "direct") {
+    // No gateway, no S3 keys, no propagation wait: the coordinator that minted
+    // the account is the party we talk to, and its api_key is valid at once.
+    const c = commitment(data);
+    const r = await putDirect(cfg, args.key, data, undefined, c);
+    root = c.root;
+    placement =
+      r.providers < r.placed
+        ? ` ${r.providers} of ${r.placed} providers accepted the bytes; the network backfills the rest.`
+        : "";
+  } else {
+    const c = client(cfg);
+    await withCredPropagation(provisioned, () =>
+      withBucket(cfg, () =>
+        c.send(new PutObjectCommand({ Bucket: cfg.bucket, Key: args.key, Body: data }))
+      )
+    );
+    root = commitRoot(data);
+  }
   // Record our own commitment to the uploaded bytes so `verify` can later prove
   // the providers hold exactly these bytes — including for encrypted objects,
   // whose ciphertext cannot be reproduced from the plaintext (fresh IV per put).
   recordRoot(cfg.bucket!, args.key, {
-    root: commitRoot(data),
+    root,
     encrypted: wantEncrypt,
     bytes: data.length,
     at: new Date().toISOString(),
@@ -166,6 +194,7 @@ export async function put(args: PutArgs): Promise<string> {
         ? ", encrypted client-side before upload; the platform holds ciphertext it cannot read"
         : ", PLAINTEXT as sent (encryption explicitly disabled)"
     }).` +
+    placement +
     note
   );
 }
@@ -180,10 +209,15 @@ export interface GetResult {
 
 export async function get(key: string, local_path?: string): Promise<GetResult> {
   const { cfg, note, provisioned } = await ensureCreds();
-  const r = await withCredPropagation(provisioned, () =>
-    client(cfg).send(new GetObjectCommand({ Bucket: cfg.bucket, Key: key }))
-  );
-  let data: Buffer = Buffer.from(await r.Body!.transformToByteArray()) as Buffer;
+  let data: Buffer;
+  if (transport(cfg) === "direct") {
+    data = await getDirect(cfg, key);
+  } else {
+    const r = await withCredPropagation(provisioned, () =>
+      client(cfg).send(new GetObjectCommand({ Bucket: cfg.bucket, Key: key }))
+    );
+    data = Buffer.from(await r.Body!.transformToByteArray()) as Buffer;
+  }
   let wasEncrypted = false;
   if (isEncrypted(data)) {
     if (!cfg.encryption_key) {
@@ -210,19 +244,28 @@ export async function get(key: string, local_path?: string): Promise<GetResult> 
 
 export async function ls(prefix?: string): Promise<string> {
   const { cfg, note, provisioned } = await ensureCreds();
-  const r = await withCredPropagation(provisioned, () =>
-    client(cfg).send(new ListObjectsV2Command({ Bucket: cfg.bucket, Prefix: prefix }))
-  );
-  const items = (r.Contents ?? []).map((o) => `${o.Size}\t${o.Key}`);
+  let items: string[];
+  if (transport(cfg) === "direct") {
+    items = (await listDirect(cfg, prefix)).map((o) => `${o.size_bytes}\t${o.key}`);
+  } else {
+    const r = await withCredPropagation(provisioned, () =>
+      client(cfg).send(new ListObjectsV2Command({ Bucket: cfg.bucket, Prefix: prefix }))
+    );
+    items = (r.Contents ?? []).map((o) => `${o.Size}\t${o.Key}`);
+  }
   const body = items.length ? items.join("\n") : "(no objects" + (prefix ? ` under ${prefix})` : ")");
   return note + body;
 }
 
 export async function rm(key: string): Promise<string> {
   const { cfg, note, provisioned } = await ensureCreds();
-  await withCredPropagation(provisioned, () =>
-    client(cfg).send(new DeleteObjectCommand({ Bucket: cfg.bucket, Key: key }))
-  );
+  if (transport(cfg) === "direct") {
+    await deleteDirect(cfg, key);
+  } else {
+    await withCredPropagation(provisioned, () =>
+      client(cfg).send(new DeleteObjectCommand({ Bucket: cfg.bucket, Key: key }))
+    );
+  }
   return note + `Deleted ${key}.`;
 }
 
