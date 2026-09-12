@@ -1,34 +1,27 @@
 /**
- * Client-side proof of retrievability (kickoff_trial_key_funnel / note_sigea_por_test).
+ * Client-side proof of retrievability.
  *
- * Answers the one question that made a blind agent treat us as secondary-only:
- * "can I actually verify the durability claim myself?" Yes. This challenges
- * every provider holding an object DIRECTLY, recomputes the merkle root from
- * YOUR bytes, and checks each provider's Ed25519 signature. Nothing the
- * coordinator says is trusted for the verdict — it is only asked WHERE to go.
- *
- * Ported from the zero-dependency reference verifier (coordinator/proof/
- * reference-verifier/verify.js) that a production customer (Sigea) already ran
- * successfully against the live network. Wire format: coordinator/proof/FORMAT.md.
+ * Challenges every provider holding an object directly and checks each
+ * provider's signed response on this machine against the commitment this
+ * client recorded at upload time. The coordinator is only asked where to go;
+ * nothing it asserts is trusted for the verdict.
  */
 
 import { createHash, createPublicKey, verify as edVerify, randomBytes, randomInt } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { expandPath, loadConfig, lookupRoot } from "./config.js";
 
-const CHUNK_SIZE = 1048576; // 1 MiB, frozen network-wide
+const CHUNK_SIZE = 1048576;
 const SIG_DOMAIN = "obsideo-proof-response-v1";
 const COORDINATOR = process.env.OBSIDEO_COORDINATOR_URL ?? "https://coordinator.obsideo.io";
 
 const sha256 = (b: Buffer) => createHash("sha256").update(b).digest();
 const sha3_512 = (b: Buffer) => createHash("sha3-512").update(b).digest();
 
-/** chunk_hash[i] = SHA-256( decimal(i) || lowercase_hex(bytes) ), both ASCII. */
 function chunkHash(index: number, bytes: Buffer): Buffer {
   return sha256(Buffer.from(String(index) + bytes.toString("hex"), "ascii"));
 }
 
-/** Zero-padded arity-2 SHA3-512 tree. A single leaf IS the root. */
 function merkleRoot(leaves: Buffer[]): Buffer {
   if (leaves.length === 0) throw new Error("no leaves");
   if (leaves.length === 1) return leaves[0];
@@ -52,8 +45,7 @@ interface Commitment {
   chunkCount: number;
 }
 
-/** The merkle root of a buffer, in the network's frozen commitment scheme.
- *  Used at upload time to record what we committed (see config.recordRoot). */
+/** Commitment recorded at upload time (see config.recordRoot). */
 export function commitRoot(data: Buffer): string {
   return commit(data).root;
 }
@@ -101,7 +93,7 @@ function verifyEd25519(rawPubHex: string, message: Buffer, sigB64: string): bool
   return edVerify(null, message, key, sig);
 }
 
-/** Every check from FORMAT.md §5, in order. */
+/** Validate one provider response against the challenge and the commitment. */
 function verifyResponse(challenge: any, response: any, commitment: Commitment, pubkeyHex: string | null) {
   const fail = () => ({ pass: false, integrity: false, signed: false });
   if (response.challenge_id !== challenge.challenge_id) return fail();

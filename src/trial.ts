@@ -1,5 +1,5 @@
 /**
- * No-email trial provisioning (kickoff_trial_key_funnel, live 2026-08-12).
+ * No-email trial provisioning.
  *
  * The email-OTP wall is unclimbable for an agent with no inbox access. The
  * trial path swaps identity for a little friction: a server-enforced ~10 s
