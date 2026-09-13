@@ -51,10 +51,12 @@ const { publicKey } = generateKeyPairSync("ed25519");
 const raw = publicKey.export({ type: "spki", format: "der" }).subarray(-32);
 const pub = "obk_sig_" + Buffer.from(raw).toString("base64url");
 await new Promise((r) => setTimeout(r, start.min_wait_seconds * 1000));
+const tr = Date.now();
 const red = await post("/v1/trial/redeem", {
   ticket: start.ticket, nonce: String(nonce), customer_signing_public_key: pub, source: "verify",
+  transport: (process.env.OBSIDEO_TRANSPORT ?? "").toLowerCase() === "s3" ? "s3" : "direct",
 });
-console.log(`[${ms()}] redeem ok  agent=${red.agent_name} bucket=${red.bucket} bucket_created=${red.bucket_created}`);
+console.log(`[${ms()}] redeem ok in ${((Date.now() - tr) / 1000).toFixed(1)}s  agent=${red.agent_name} bucket=${red.bucket} bucket_created=${red.bucket_created}`);
 
 home = mkdtempSync(join(tmpdir(), "obsideo-mcp-e2e-"));
 agentName = red.agent_name;
