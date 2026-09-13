@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "obsideo": {
+      "command": "npx",
+      "args": ["-y", "obsideo-mcp"],
+      "env": {
+        "OBSIDEO_SOURCE": "claude-code-plugin"
+      }
+    }
+  }
+}
