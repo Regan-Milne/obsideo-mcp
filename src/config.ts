@@ -131,3 +131,21 @@ export function requireCreds(cfg: ObsideoConfig): asserts cfg is Required<
     );
   }
 }
+
+/**
+ * The channel label this install reports at signup.
+ *
+ * Defaults to "mcp". Our own end-to-end runs set OBSIDEO_SOURCE=verify so they
+ * declare themselves as ours at the moment the account is created, instead of
+ * being scrubbed out of the funnel afterwards by hand.
+ *
+ * Why it matters: an e2e run auto-provisions exactly like a real customer's
+ * first `put` -- same path, same default source. On 2026-09-12 that made the
+ * signup alert email announce our own test as a customer conversion, and put
+ * twenty of our own accounts into a cumulative funnel count of twenty-two. No
+ * downstream filter can separate them once they are identical on the wire, so
+ * the separation has to happen here.
+ */
+export function defaultSource(): string {
+  return (process.env.OBSIDEO_SOURCE ?? "").trim() || "mcp";
+}

@@ -16,7 +16,7 @@ import { fetchOnce } from "./net.js";
 import { generateKey } from "./crypto.js";
 import { generateKeyPairSync } from "node:crypto";
 import { writeFileSync, chmodSync, mkdirSync } from "node:fs";
-import { CONFIG_DIR, SIGNING_KEY_PATH, loadConfig, saveConfig } from "./config.js";
+import { CONFIG_DIR, SIGNING_KEY_PATH, defaultSource, loadConfig, saveConfig } from "./config.js";
 
 const SIGNUP_BASE = process.env.OBSIDEO_SIGNUP_URL ?? "https://signup.obsideo.io";
 
@@ -80,7 +80,7 @@ export async function signupStart(
       throw e;
     }
   }
-  const r = await post("/v1/auth/start", { email, source: source ?? "mcp" });
+  const r = await post("/v1/auth/start", { email, source: source ?? defaultSource() });
   saveConfig({ ...loadConfig(), pending_signup_mode: "auth" });
   return r.message ?? "Verification code sent. Check the inbox (and spam).";
 }

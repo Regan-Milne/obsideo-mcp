@@ -18,7 +18,7 @@ import { report, sleepWithCountdown } from "./progress.js";
 import { generateKey } from "./crypto.js";
 import { createHash } from "node:crypto";
 import { generateSigningKey } from "./signup.js";
-import { loadConfig, saveConfig, type ObsideoConfig } from "./config.js";
+import { defaultSource, loadConfig, saveConfig, type ObsideoConfig } from "./config.js";
 
 const SIGNUP_BASE = process.env.OBSIDEO_SIGNUP_URL ?? "https://signup.obsideo.io";
 
@@ -114,7 +114,7 @@ export function refuseIfConfigured(replace: boolean): void {
   );
 }
 
-export async function provisionTrial(source = "mcp"): Promise<TrialResult> {
+export async function provisionTrial(source = defaultSource()): Promise<TrialResult> {
   await report("Creating a free Obsideo trial account: requesting an issuance ticket", 1, 5);
   const start = await post("/v1/trial/start", { source });
   const t0 = Date.now();
@@ -174,7 +174,7 @@ export async function provisionTrial(source = "mcp"): Promise<TrialResult> {
  * credentials already existed.
  */
 export async function ensureCreds(
-  source = "mcp"
+  source = defaultSource()
 ): Promise<{ cfg: ObsideoConfig; note: string; provisioned: boolean }> {
   const cfg = loadConfig();
   const haveCreds = cfg.access_key && cfg.secret_key && cfg.endpoint && cfg.bucket;

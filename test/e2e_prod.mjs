@@ -67,6 +67,10 @@ writeFileSync(join(home, "mcp.json"), JSON.stringify({
 }));
 }
 process.env.OBSIDEO_MCP_HOME = home;
+// Declare this run as ours AT SIGNUP. Without it the account it creates is
+// indistinguishable from a real first `put` and lands in the funnel as a
+// customer -- which is exactly what happened on 2026-09-12.
+process.env.OBSIDEO_SOURCE = process.env.OBSIDEO_SOURCE ?? "verify";
 
 const storage = await import("../dist/storage.js");
 const key = `e2e/direct-${Date.now()}.txt`;

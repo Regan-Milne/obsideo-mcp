@@ -24,7 +24,7 @@ console.log("home:", home, process.env.OBSIDEO_E2E_HOME ? "(reused)" : "(fresh, 
 const transport = new StdioClientTransport({
   command: process.execPath,
   args: ["dist/index.js"],
-  env: { ...process.env, OBSIDEO_MCP_HOME: home },
+  env: { ...process.env, OBSIDEO_MCP_HOME: home, OBSIDEO_SOURCE: process.env.OBSIDEO_SOURCE ?? "verify" },
 });
 const client = new Client({ name: "e2e-billing", version: "0.0.0" });
 await client.connect(transport);

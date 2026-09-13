@@ -11,7 +11,7 @@ const [, , version = "latest", claimEmail] = process.argv;
 const home = mkdtempSync(join(tmpdir(), "obsideo-pub-"));
 console.log(`home ${home}  package obsideo-mcp@${version}`);
 const t = new StdioClientTransport({ command: process.platform === "win32" ? "npx.cmd" : "npx",
-  args: ["-y", `obsideo-mcp@${version}`], env: { ...process.env, OBSIDEO_MCP_HOME: home } });
+  args: ["-y", `obsideo-mcp@${version}`], env: { ...process.env, OBSIDEO_MCP_HOME: home, OBSIDEO_SOURCE: process.env.OBSIDEO_SOURCE ?? "verify" } });
 const c = new Client({ name: "e2e-published", version: "0" }); await c.connect(t);
 const sv = c.getServerVersion(); console.log("server", sv?.name, sv?.version);
 const fail = (m) => { console.error("FAIL:", m); process.exit(1); };
