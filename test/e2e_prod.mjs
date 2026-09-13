@@ -28,6 +28,17 @@ async function post(path, body) {
   return j;
 }
 
+// OBSIDEO_E2E_REUSE_HOME=<dir with mcp.json>: skip minting (the shim caps
+// trials per address; our own test runs hit that cap) and drive an existing
+// verify-sourced trial instead.
+const reuse = process.env.OBSIDEO_E2E_REUSE_HOME;
+let home;
+let agentName;
+if (reuse) {
+  home = reuse;
+  agentName = JSON.parse((await import("node:fs")).readFileSync(join(home, "mcp.json"), "utf8")).agent_name;
+  console.log(`[${ms()}] reusing ${home} (agent=${agentName})`);
+} else {
 const start = await post("/v1/trial/start", { source: "verify" });
 console.log(`[${ms()}] start ok  bits=${start.pow_bits} wait=${start.min_wait_seconds}s`);
 let nonce = 0;
@@ -45,12 +56,14 @@ const red = await post("/v1/trial/redeem", {
 });
 console.log(`[${ms()}] redeem ok  agent=${red.agent_name} bucket=${red.bucket} bucket_created=${red.bucket_created}`);
 
-const home = mkdtempSync(join(tmpdir(), "obsideo-mcp-e2e-"));
+home = mkdtempSync(join(tmpdir(), "obsideo-mcp-e2e-"));
+agentName = red.agent_name;
 writeFileSync(join(home, "mcp.json"), JSON.stringify({
   email: `trial:${red.agent_name}`, account_id: red.account_id, account_token: red.account_token,
   api_key: red.api_key, endpoint: red.endpoint, region: red.region, bucket: red.bucket,
   access_key: red.access_key, secret_key: red.secret_key, trial: true, agent_name: red.agent_name,
 }));
+}
 process.env.OBSIDEO_MCP_HOME = home;
 
 const storage = await import("../dist/storage.js");
@@ -68,4 +81,4 @@ const ls = await storage.ls("e2e/");
 console.log(`[${ms()}] ls ok  -> ${ls.split("\n").slice(-1)[0]}`);
 
 console.log(`[${ms()}] rm -> ${await storage.rm(key)}`);
-console.log(`transport=${process.env.OBSIDEO_TRANSPORT ?? "direct (default)"}  account=trial-${red.agent_name}  (source=verify; exclude from conversion counts)`);
+console.log(`transport=${process.env.OBSIDEO_TRANSPORT ?? "direct (default)"}  account=trial-${agentName}  (source=verify; exclude from conversion counts)`);
