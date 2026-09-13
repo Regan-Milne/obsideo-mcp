@@ -128,11 +128,18 @@ export async function provisionTrial(source = "mcp"): Promise<TrialResult> {
 
   await report("Registering the account and its signing key", 4, 5);
   const pubkey = generateSigningKey();
+  // Declare the transport. "direct" lets the signup service return at once
+  // instead of waiting up to ~30 s for the S3 gateway to learn the new key
+  // (we never use the gateway on that path; storage.ts picks direct whenever
+  // api_key is present). Forcing OBSIDEO_TRANSPORT=s3 keeps the old, slower,
+  // bucket-ready-on-return behaviour.
+  const transport = (process.env.OBSIDEO_TRANSPORT ?? "").toLowerCase() === "s3" ? "s3" : "direct";
   const r = await post("/v1/trial/redeem", {
     ticket: start.ticket,
     nonce,
     customer_signing_public_key: pubkey,
     source,
+    transport,
   });
 
   const cfg = loadConfig();
