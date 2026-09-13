@@ -14,6 +14,8 @@
  */
 
 import { fetchOnce } from "./net.js";
+import { report, sleepWithCountdown } from "./progress.js";
+import { generateKey } from "./crypto.js";
 import { createHash } from "node:crypto";
 import { generateSigningKey } from "./signup.js";
 import { loadConfig, saveConfig, type ObsideoConfig } from "./config.js";
@@ -27,11 +29,12 @@ const AUTO_TRIAL_DISABLED = ["1", "true", "yes", "on"].includes(
 );
 
 async function post(path: string, body: unknown): Promise<any> {
-  const resp = await fetchOnce(SIGNUP_BASE + path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const resp = await fetchOnce(
+    SIGNUP_BASE + path,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+    // redeem provisions the account and waits for the gateway; it is not idempotent
+    { retry: path.endsWith("/start"), timeoutMs: path.endsWith("/redeem") ? 120_000 : 30_000 }
+  );
   const raw = await resp.text();
   let json: any;
   try {
@@ -112,15 +115,18 @@ export function refuseIfConfigured(replace: boolean): void {
 }
 
 export async function provisionTrial(source = "mcp"): Promise<TrialResult> {
+  await report("Creating a free Obsideo trial account: requesting an issuance ticket", 1, 5);
   const start = await post("/v1/trial/start", { source });
   const t0 = Date.now();
+  await report("Solving the proof of work (a second or two)", 2, 5);
   const nonce = solvePow(start.pow_challenge, start.pow_bits);
   // The shim enforces min_wait_seconds server-side; sleep out whatever the
   // PoW did not already cover (+250 ms slack for clock skew).
   const waited = (Date.now() - t0) / 1000;
   const remaining = (start.min_wait_seconds ?? 10) - waited;
-  if (remaining > 0) await new Promise((r) => setTimeout(r, remaining * 1000 + 250));
+  if (remaining > 0) await sleepWithCountdown(remaining * 1000 + 250, "Waiting out the issuance window");
 
+  await report("Registering the account and its signing key", 4, 5);
   const pubkey = generateSigningKey();
   const r = await post("/v1/trial/redeem", {
     ticket: start.ticket,
@@ -144,7 +150,12 @@ export async function provisionTrial(source = "mcp"): Promise<TrialResult> {
     trial: true,
     agent_name: r.agent_name,
     trial_expires_at: r.trial?.expires_at,
+    // The encryption key is born WITH the account, so a backup taken right
+    // after signup is complete. (Before 0.6.4 it appeared on the first put,
+    // and an evaluator's post-signup backup was useless as a result.)
+    encryption_key: cfg.encryption_key ?? generateKey(),
   });
+  await report("Account ready", 5, 5);
   return { agent_name: r.agent_name, quota_mb: r.quota_mb, expires_at: r.trial?.expires_at };
 }
 
@@ -176,7 +187,8 @@ export async function ensureCreds(
     `${t.quota_mb} MB, expires ${t.expires_at ?? "in ~7 days"}. It lives on the production ` +
     `network with RF=3 replication and continuous possession proofs. Tell your human: this is a ` +
     `trial (small and temporary); to keep the data, claim it with an email via signup_start ` +
-    `(12 GB free, no card, no expiry; same account, nothing moves). Credentials were saved ` +
-    `locally under ~/.obsideo.\n\n`;
+    `(12 GB free, no card, no expiry; same account, nothing moves). Credentials AND the encryption ` +
+    `key were saved locally under ~/.obsideo; Obsideo has no copy of the key. Call backup_keys now ` +
+    `with a path the human names.\n\n`;
   return { cfg: loadConfig(), note, provisioned: true };
 }

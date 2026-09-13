@@ -4,6 +4,7 @@
  */
 
 import { fetchOnce } from "./net.js";
+import { report } from "./progress.js";
 import {
   S3Client,
   PutObjectCommand,
@@ -90,6 +91,11 @@ async function withCredPropagation<T>(justProvisioned: boolean, op: () => Promis
         throw e;
       }
       last = e;
+      const left = backoffs.slice(i).reduce((a, b) => a + b, 0);
+      await report(
+        `Waiting for the gateway to accept the new credentials (attempt ${i + 1} of ${backoffs.length + 1}, up to ${left} s more)`,
+        i + 1, backoffs.length + 1
+      );
       await new Promise((r) => setTimeout(r, backoffs[i] * 1000));
     }
   }
