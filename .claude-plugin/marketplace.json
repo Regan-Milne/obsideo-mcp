@@ -1,0 +1,26 @@
+{
+  "name": "obsideo",
+  "owner": {
+    "name": "Obsideo Technologies Inc.",
+    "email": "regan@obsideo.io",
+    "url": "https://obsideo.io"
+  },
+  "description": "Encrypted offsite object storage for coding agents, with possession proofs you can verify yourself.",
+  "plugins": [
+    {
+      "name": "obsideo",
+      "source": "./claude-plugin",
+      "displayName": "Obsideo Storage",
+      "description": "Encrypted offsite object storage for your projects and your Claude Code setup, with possession proofs you can verify yourself. Free trial with no signup, 12 GB free with an email.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Obsideo Technologies Inc.",
+        "email": "regan@obsideo.io"
+      },
+      "homepage": "https://obsideo.io/agent-storage",
+      "repository": "https://github.com/Regan-Milne/obsideo-mcp",
+      "keywords": ["storage", "backup", "offsite", "encryption", "s3", "object-storage"],
+      "category": "productivity"
+    }
+  ]
+}

@@ -4,9 +4,13 @@ Encrypted offsite object storage, installed as a Claude Code plugin. Installing 
 brings the `obsideo` MCP server with it — there is no separate `claude mcp add` step.
 
 ```
-/plugin marketplace add anthropics/claude-plugins-community
-/plugin install obsideo@claude-community
+/plugin marketplace add Regan-Milne/obsideo-mcp
+/plugin install obsideo@obsideo
 ```
+
+That works today, straight from this repository. The same plugin is also submitted
+to Anthropic's community marketplace; once it lands there, `obsideo@claude-community`
+works too.
 
 Or test it locally from a clone of this repo:
 
@@ -20,6 +24,7 @@ claude --plugin-dir ./claude-plugin
 |---|---|
 | `offsite-backup` skill | Backs up files or a project, encrypting on this machine first |
 | `verify-backup` skill | Asks the providers to prove they still hold the bytes, without downloading them |
+| `backup-claude-setup` skill | Backs up this project's CLAUDE.md, skills, agents, hooks and settings — with credential files excluded |
 | `obsideo` MCP server | 13 tools: `put`, `get`, `ls`, `rm`, `verify`, `usage`, `plan`, `backup_keys`, signup and billing |
 
 ## How it works
