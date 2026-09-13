@@ -3,6 +3,8 @@
  * exactly as sent). Optional encrypt-first via crypto.ts.
  */
 
+import { fetchOnce } from "./net.js";
+import { report } from "./progress.js";
 import {
   S3Client,
   PutObjectCommand,
@@ -102,6 +104,11 @@ async function withCredPropagation<T>(justProvisioned: boolean, op: () => Promis
         throw e;
       }
       last = e;
+      const left = backoffs.slice(i).reduce((a, b) => a + b, 0);
+      await report(
+        `Waiting for the gateway to accept the new credentials (attempt ${i + 1} of ${backoffs.length + 1}, up to ${left} s more)`,
+        i + 1, backoffs.length + 1
+      );
       await new Promise((r) => setTimeout(r, backoffs[i] * 1000));
     }
   }
@@ -272,7 +279,7 @@ export async function rm(key: string): Promise<string> {
 export async function usage(): Promise<string> {
   const { cfg, note } = await ensureCreds();
   const base = process.env.OBSIDEO_SIGNUP_URL ?? "https://signup.obsideo.io";
-  const resp = await fetch(base + "/v1/account/usage", {
+  const resp = await fetchOnce(base + "/v1/account/usage", {
     headers: { Authorization: `Bearer ${cfg.account_token}` },
   });
   const json: any = await resp.json();

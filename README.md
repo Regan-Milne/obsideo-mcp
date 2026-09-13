@@ -31,13 +31,15 @@ Stripe's own page; the plan never changes size without the human's agreement.
 
 ### Back up your key
 
-The encryption key is generated on your machine on first use and written to
+The encryption key is generated on your machine when the account is created and written to
 `~/.obsideo/mcp.json`. **Obsideo does not have a copy and cannot recover it.**
 If that file is lost, every encrypted object is permanently unreadable, no
 matter how many providers still hold it and how many proofs it passes.
 Replication protects against providers losing your bytes; it does not protect
-against you losing your key. Back up `~/.obsideo/mcp.json` somewhere you would
-still have after losing this machine.
+against you losing your key. Call `backup_keys` right after signup and keep the
+archive somewhere you would still have after losing this machine. Encrypted
+objects are readable only with this key: there is no sharing of encrypted objects
+between people or machines today, so treat an account as one person's.
 
 `~/.obsideo/roots.json` is written alongside it: the merkle root of each object
 as committed at upload time. It holds no secrets, and it is what lets `verify`
@@ -79,7 +81,7 @@ command on any OS (Node 18 or newer is required for `npx`):
 hermes mcp add obsideo --command npx --args -y obsideo-mcp
 ```
 
-It writes the server into Hermes's own config, connects, lists the 12 tools and
+It writes the server into Hermes's own config, connects, lists the 13 tools and
 asks which to enable (leave out `rm` if you would rather the agent had no delete
 tool). Then `/reload-mcp` in a running session, or start a new one. The tools
 appear as `mcp_obsideo_put`, `mcp_obsideo_get`, `mcp_obsideo_verify` and so on.
@@ -100,6 +102,7 @@ store its own MEMORY.md on obsideo, then to verify it.
 | `rm` | Delete an object |
 | `verify` | Prove the network still holds an object, without downloading it |
 | `usage` | Storage used vs quota, plus the plan line |
+| `backup_keys` | Copy credentials, signing key and encryption key to a path the human names (archive or folder). Obsideo has no copy of the key; call it right after signup |
 | `plan` | Free tier or paid blocks, status, period end, any offer waiting for the human |
 | `upgrade` | Stripe checkout link for N x 200 GB blocks. Charges nothing; the human pays on Stripe's page. Never changes an existing plan |
 | `portal` | Stripe portal link: cancel, change card, invoices |

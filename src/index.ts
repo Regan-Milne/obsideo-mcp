@@ -18,8 +18,10 @@ import { provisionTrial, refuseIfConfigured } from "./trial.js";
 import { get, ls, put, rm, usage } from "./storage.js";
 import { verifyObject } from "./verify.js";
 import { plan, portal, upgrade } from "./billing.js";
+import { reporterFrom, withReporter } from "./progress.js";
+import { backupKeys } from "./backup.js";
 
-const server = new McpServer({ name: "obsideo", version: "0.6.2" });
+const server = new McpServer({ name: "obsideo", version: "0.6.4" });
 
 function text(t: string) {
   return { content: [{ type: "text" as const, text: t }] };
@@ -43,7 +45,8 @@ server.registerTool(
       "proofs) and saves credentials locally. You usually do NOT need to call this: the first " +
       "put/get/ls/usage auto-creates a trial if no account is configured. Call it to provision " +
       "explicitly. To keep data beyond the trial, claim it with an email via signup_start " +
-      "(same account and data, quota rises to 12 GB).",
+      "(same account and data, quota rises to 12 GB). Takes about 15 to 30 seconds (proof of work " +
+      "plus a 10 second issuance window); progress is reported while it runs.",
     inputSchema: {
       source: z.string().optional().describe("Where you found Obsideo (defaults to 'mcp')"),
       replace: z
@@ -56,22 +59,22 @@ server.registerTool(
     },
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
   },
-  async ({ source, replace }) => {
+  async ({ source, replace }, extra) => withReporter(reporterFrom(extra), async () => {
     try {
       refuseIfConfigured(replace ?? false);
       const t = await provisionTrial(source);
       return text(
         `Trial account created: agent "${t.agent_name}", ${t.quota_mb} MB, expires ` +
           `${t.expires_at ?? "in ~7 days"}. Credentials saved locally under ~/.obsideo. ` +
-          "Objects are encrypted client-side by default with a key generated on this machine " +
-          "and held only here; back up ~/.obsideo/mcp.json or the data cannot be recovered. " +
+          "The encryption key was generated with the account and is held only on this machine; " +
+          "call backup_keys now, or the data cannot be recovered if this machine is lost. " +
           "This is a small, temporary account on the production network; to keep the data, " +
           "claim it with an email via signup_start (12 GB free, same account, nothing moves)."
       );
     } catch (e) {
       return errText(e);
     }
-  }
+  })
 );
 
 server.registerTool(
@@ -97,13 +100,13 @@ server.registerTool(
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },
-  async ({ email, source, abandon_trial }) => {
+  async ({ email, source, abandon_trial }, extra) => withReporter(reporterFrom(extra), async () => {
     try {
       return text(await signupStart(email, source, abandon_trial ?? false));
     } catch (e) {
       return errText(e);
     }
-  }
+  })
 );
 
 server.registerTool(
@@ -122,13 +125,13 @@ server.registerTool(
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },
-  async ({ email, code }) => {
+  async ({ email, code }, extra) => withReporter(reporterFrom(extra), async () => {
     try {
       return text(await signupVerify(email, code));
     } catch (e) {
       return errText(e);
     }
-  }
+  })
 );
 
 server.registerTool(
@@ -143,7 +146,9 @@ server.registerTool(
       "unrecoverable, so tell them to back it up. Pass encrypt=false only when another tool must " +
       "read the stored bytes directly (S3 interop); that stores plaintext. Zero-byte objects are " +
       "rejected. Objects are replicated to 3 providers and verified on a continuous cryptographic " +
-      "challenge cycle.",
+      "challenge cycle. The first call on a fresh machine also creates the account and can take 20 to " +
+      "50 seconds; progress is reported while it runs. Encrypted objects are readable only with this " +
+      "machine's key: there is no cross-user sharing of encrypted objects.",
     inputSchema: {
       key: z.string().describe("Object key, e.g. backups/db-2026-07-19.sql.zst"),
       local_path: z.string().optional().describe("Path of a local file to upload"),
@@ -156,13 +161,13 @@ server.registerTool(
     // destructiveHint true: writing to an existing key overwrites it.
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
   },
-  async (args) => {
+  async (args, extra) => withReporter(reporterFrom(extra), async () => {
     try {
       return text(await put(args));
     } catch (e) {
       return errText(e);
     }
-  }
+  })
 );
 
 server.registerTool(
@@ -180,7 +185,7 @@ server.registerTool(
     },
     annotations: { readOnlyHint: true, openWorldHint: true },
   },
-  async ({ key, local_path }) => {
+  async ({ key, local_path }, extra) => withReporter(reporterFrom(extra), async () => {
     try {
       const r = await get(key, local_path);
       const note = r.note ?? "";
@@ -190,7 +195,7 @@ server.registerTool(
     } catch (e) {
       return errText(e);
     }
-  }
+  })
 );
 
 server.registerTool(
@@ -201,13 +206,13 @@ server.registerTool(
     inputSchema: { prefix: z.string().optional() },
     annotations: { readOnlyHint: true, openWorldHint: true },
   },
-  async ({ prefix }) => {
+  async ({ prefix }, extra) => withReporter(reporterFrom(extra), async () => {
     try {
       return text(await ls(prefix));
     } catch (e) {
       return errText(e);
     }
-  }
+  })
 );
 
 server.registerTool(
@@ -218,13 +223,13 @@ server.registerTool(
     inputSchema: { key: z.string() },
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
   },
-  async ({ key }) => {
+  async ({ key }, extra) => withReporter(reporterFrom(extra), async () => {
     try {
       return text(await rm(key));
     } catch (e) {
       return errText(e);
     }
-  }
+  })
 );
 
 server.registerTool(
@@ -246,12 +251,12 @@ server.registerTool(
     },
     annotations: { readOnlyHint: true, openWorldHint: true },
   },
-  async ({ key, local_path }) => {
+  async ({ key, local_path }, extra) => withReporter(reporterFrom(extra), async () => {
     try {
       const r = await verifyObject(key, local_path);
       const lines: string[] = [];
       lines.push(
-        `${r.proved} of ${r.holders} providers proved possession of ${r.bucket}/${key} right now` +
+        `${r.proved} of ${r.holders} providers proved possession of ${key} right now` +
           (r.signed ? ` (${r.signed} returned a valid cryptographic signature)` : "") + "."
       );
       if (r.rootSource === "local-file") {
@@ -286,7 +291,7 @@ server.registerTool(
     } catch (e) {
       return errText(e);
     }
-  }
+  })
 );
 
 server.registerTool(
@@ -297,13 +302,13 @@ server.registerTool(
     inputSchema: {},
     annotations: { readOnlyHint: true, openWorldHint: true },
   },
-  async () => {
+  async (_args, extra) => withReporter(reporterFrom(extra), async () => {
     try {
       return text(await usage());
     } catch (e) {
       return errText(e);
     }
-  }
+  })
 );
 
 server.registerTool(
@@ -317,13 +322,13 @@ server.registerTool(
     inputSchema: {},
     annotations: { readOnlyHint: true, openWorldHint: true },
   },
-  async () => {
+  async (_args, extra) => withReporter(reporterFrom(extra), async () => {
     try {
       return text(await plan());
     } catch (e) {
       return errText(e);
     }
-  }
+  })
 );
 
 server.registerTool(
@@ -347,13 +352,13 @@ server.registerTool(
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   },
-  async ({ blocks }) => {
+  async ({ blocks }, extra) => withReporter(reporterFrom(extra), async () => {
     try {
       return text(await upgrade(blocks ?? 1));
     } catch (e) {
       return errText(e);
     }
-  }
+  })
 );
 
 server.registerTool(
@@ -367,9 +372,37 @@ server.registerTool(
     inputSchema: {},
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   },
-  async () => {
+  async (_args, extra) => withReporter(reporterFrom(extra), async () => {
     try {
       return text(await portal());
+    } catch (e) {
+      return errText(e);
+    }
+  })
+);
+
+server.registerTool(
+  "backup_keys",
+  {
+    title: "Back up the credentials and encryption key",
+    description:
+      "Copy everything needed to recover this account's data (credentials, account signing key, " +
+      "encryption key, upload commitments) to a path the human names. Obsideo holds no copy of " +
+      "the encryption key: if the local file is lost, encrypted objects are unrecoverable no matter " +
+      "how many providers hold them. Call this once right after the account is created and again " +
+      "after any signup that rotates keys. A .tar.gz path produces one archive; a directory path " +
+      "produces plain copies; no path produces an archive in the home directory.",
+    inputSchema: {
+      destination: z
+        .string()
+        .optional()
+        .describe("Archive path ending in .tar.gz, or a directory; defaults to ~/obsideo-keys-<account>-<date>.tar.gz"),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  },
+  async ({ destination }) => {
+    try {
+      return text(backupKeys(destination));
     } catch (e) {
       return errText(e);
     }

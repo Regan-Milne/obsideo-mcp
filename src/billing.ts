@@ -13,6 +13,7 @@
  * Stripe sees an email and a card; never an S3 credential, key, or byte.
  */
 
+import { fetchOnce } from "./net.js";
 import { loadConfig } from "./config.js";
 
 const SIGNUP_BASE = process.env.OBSIDEO_SIGNUP_URL ?? "https://signup.obsideo.io";
@@ -51,7 +52,7 @@ async function authed(method: "GET" | "POST", path: string, body?: unknown): Pro
         "trial is created automatically) or run signup_start + signup_verify, then retry."
     );
   }
-  const resp = await fetch(SIGNUP_BASE + path, {
+  const resp = await fetchOnce(SIGNUP_BASE + path, {
     method,
     headers: {
       Authorization: `Bearer ${cfg.account_token}`,

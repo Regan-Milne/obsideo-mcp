@@ -12,6 +12,8 @@
  *     is written to ~/.obsideo/signing.pem.
  */
 
+import { fetchOnce } from "./net.js";
+import { generateKey } from "./crypto.js";
 import { generateKeyPairSync } from "node:crypto";
 import { writeFileSync, chmodSync, mkdirSync } from "node:fs";
 import { CONFIG_DIR, SIGNING_KEY_PATH, loadConfig, saveConfig } from "./config.js";
@@ -19,14 +21,15 @@ import { CONFIG_DIR, SIGNING_KEY_PATH, loadConfig, saveConfig } from "./config.j
 const SIGNUP_BASE = process.env.OBSIDEO_SIGNUP_URL ?? "https://signup.obsideo.io";
 
 async function post(path: string, body: unknown, bearer?: string): Promise<any> {
-  const resp = await fetch(SIGNUP_BASE + path, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+  const resp = await fetchOnce(
+    SIGNUP_BASE + path,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}) },
+      body: JSON.stringify(body),
     },
-    body: JSON.stringify(body),
-  });
+    { retry: false, timeoutMs: 90_000 }
+  );
   const text = await resp.text();
   let json: any;
   try {
@@ -139,13 +142,14 @@ export async function signupVerify(email: string, code: string): Promise<string>
     bucket: r.bucket,
     access_key: r.access_key,
     secret_key: r.secret_key,
+    encryption_key: rest.encryption_key ?? generateKey(),
   });
   const fresh = r.account_exists
     ? "Existing account for this email: same account and quota, fresh credentials issued (prior ones revoked)."
     : "New account created.";
   return (
-    `${fresh} Quota ${r.quota_gb} GB. Credentials and the account signing key were saved ` +
-    `locally under ${CONFIG_DIR} (never share the secret key or signing.pem). ` +
+    `${fresh} Quota ${r.quota_gb} GB. Credentials, the account signing key and the encryption key were saved ` +
+    `locally under ${CONFIG_DIR} (never share them; Obsideo has no copy of the encryption key). Call backup_keys now. ` +
     "Fresh credentials go live on the gateway within about 30 seconds; a 403 before " +
     "that is credentials_propagating: wait 15 s and retry, do not re-run signup."
   );

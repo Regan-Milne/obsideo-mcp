@@ -1,0 +1,10 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { mkdtempSync } from "node:fs"; import { tmpdir } from "node:os"; import { join } from "node:path";
+const home = mkdtempSync(join(tmpdir(), "obsideo-mcpb-"));
+const t = new StdioClientTransport({ command: process.execPath, args: ["mcpb/server/index.mjs"], env: { ...process.env, OBSIDEO_MCP_HOME: home } });
+const c = new Client({ name: "mcpb-check", version: "0" }); await c.connect(t);
+const v = c.getServerVersion(); const tools = (await c.listTools()).tools.map(x => x.name).sort();
+console.log(`bundle serves ${v?.name} ${v?.version}: ${tools.length} tools`);
+const r = await c.callTool({ name: "plan", arguments: {} }); console.log("plan (no account):", r.content[0].text.slice(0, 80));
+await c.close();
