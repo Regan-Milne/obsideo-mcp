@@ -1,7 +1,7 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.obsideo/mcp",
-  "description": "S3-compatible storage, encrypted client-side by default, with cryptographic possession proofs you can verify yourself. Instant no-email trial; 12 GB free with an email.",
+  "description": "Encrypted S3-compatible storage with possession proofs you can verify yourself. 12 GB free.",
   "repository": {
     "url": "https://github.com/Regan-Milne/obsideo-mcp",
     "source": "github"
