@@ -12,7 +12,7 @@ repo, each a single `manifest.yaml`. There is no self-serve tier: **entries are
 merged by Nous staff via PR review.** The catalog is browsable from the Hermes
 web dashboard and CLI with one-click install.
 
-## Acceptance run (done 2026-09-16 on 0.7.1, the third-party evaluation sequence)
+## Acceptance run (done 2026-09-16 on 0.7.1 and again on 0.7.2, the third-party evaluation sequence)
 
 `node scripts/e2e-catalog.mjs phase1 <claim-email>` then `phase2 <home> <code>`: runs the
 exact manifest command in a fresh home. Cold install, auto-trial on first put, ls, verify
@@ -22,7 +22,7 @@ put + verify after claim, 12 GB quota. PASS.
 ## To submit
 
 1. Publish the pinned version to npm first. The manifest pins an exact version
-   (`obsideo-mcp@0.7.1`; bump to 0.7.2 once published) rather than floating, so a catalog install never
+   (`obsideo-mcp@0.7.2`) rather than floating, so a catalog install never
    changes what it runs when we publish a release. That version must exist
    before the entry can be reviewed.
 2. Fork `NousResearch/hermes-agent`, add this file at
