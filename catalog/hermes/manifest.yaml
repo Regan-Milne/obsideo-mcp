@@ -20,6 +20,11 @@ transport:
   args:
     - "-y"
     - "obsideo-mcp@0.7.1"
+  # Attribution only. The server sends this label with the signup so Obsideo can
+  # tell catalog installs from other MCP clients; it is not a credential and it
+  # changes nothing about what the server does.
+  env:
+    OBSIDEO_SOURCE: hermes-catalog
 
 # No credentials to collect. The server provisions its own account on first
 # use (see post_install) and stores the credentials locally under ~/.obsideo.
