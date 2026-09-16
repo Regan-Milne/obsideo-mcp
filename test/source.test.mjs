@@ -25,3 +25,22 @@ test("blank or whitespace OBSIDEO_SOURCE falls back rather than sending an empty
   assert.equal(defaultSource(), "mcp");
   delete process.env.OBSIDEO_SOURCE;
 });
+
+test("a Hermes client is attributed as source=hermes when no env is set", async () => {
+  const { defaultSource, setClientName } = await import("../dist/config.js");
+  delete process.env.OBSIDEO_SOURCE;
+  setClientName("hermes-agent"); assert.equal(defaultSource(), "hermes");
+  setClientName("Hermes Agent"); assert.equal(defaultSource(), "hermes");
+  setClientName("claude-desktop"); assert.equal(defaultSource(), "mcp");
+  process.env.OBSIDEO_SOURCE = "verify"; setClientName("hermes-agent");
+  assert.equal(defaultSource(), "verify", "env wins over client name");
+  delete process.env.OBSIDEO_SOURCE; setClientName("");
+});
+
+test("the server version is the package.json version", async () => {
+  const { createRequire } = await import("node:module");
+  const pkg = createRequire(import.meta.url)("../package.json");
+  const src = (await import("node:fs")).readFileSync(new URL("../dist/index.js", import.meta.url), "utf8");
+  assert.ok(!/version: "0\.\d+\.\d+"/.test(src), "no hardcoded version string in the server");
+  assert.match(pkg.version, /^\d+\.\d+\.\d+$/);
+});

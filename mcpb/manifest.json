@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "obsideo",
   "display_name": "Obsideo Storage",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Encrypted S3-compatible storage with cryptographic possession proofs. 12 GB free, signup in-conversation, credentials stay on your machine.",
   "long_description": "Give Claude durable, private object storage. Obsideo is S3-compatible storage where every stored object is replicated to 3 providers and challenge-verified with chunk-level merkle proofs on a continuous cycle. The first put creates a free no-email trial account, so storage works with nothing to configure; signing up in-conversation (email code, no card) raises the quota to 12 GB free and keeps the same account and data. Objects are encrypted client-side by default with AES-256-GCM using a locally generated, user-held key, so the platform stores ciphertext it cannot read. The verify tool challenges each provider holding an object and checks their signatures, so you can prove your bytes are still held without downloading them. This extension runs entirely on your machine: credentials and encryption keys are stored locally in ~/.obsideo/mcp.json and are never sent to or hosted by Obsideo.",
   "author": {

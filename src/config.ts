@@ -146,6 +146,19 @@ export function requireCreds(cfg: ObsideoConfig): asserts cfg is Required<
  * downstream filter can separate them once they are identical on the wire, so
  * the separation has to happen here.
  */
+let clientName = "";
+/** Set once from the MCP initialize handshake (clientInfo.name). */
+export function setClientName(name: string): void {
+  clientName = (name ?? "").trim();
+}
+export function clientNameForTests(): string {
+  return clientName;
+}
 export function defaultSource(): string {
-  return (process.env.OBSIDEO_SOURCE ?? "").trim() || "mcp";
+  const env = (process.env.OBSIDEO_SOURCE ?? "").trim();
+  if (env) return env;
+  // Hermes Agent identifies itself as "hermes" / "hermes-agent" in
+  // clientInfo.name; a catalog install has no other way to tell us it is one.
+  if (/hermes/i.test(clientName)) return "hermes";
+  return "mcp";
 }

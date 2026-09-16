@@ -21,7 +21,12 @@ import { plan, portal, upgrade } from "./billing.js";
 import { reporterFrom, withReporter } from "./progress.js";
 import { backupKeys } from "./backup.js";
 
-const server = new McpServer({ name: "obsideo", version: "0.6.4" });
+import { createRequire } from "node:module";
+import { setClientName } from "./config.js";
+// Version comes from package.json so the handshake can never drift from the
+// published package again (0.7.1 on npm announced itself as 0.6.4).
+const pkg = createRequire(import.meta.url)("../package.json") as { version: string };
+const server = new McpServer({ name: "obsideo", version: pkg.version });
 
 function text(t: string) {
   return { content: [{ type: "text" as const, text: t }] };
@@ -410,4 +415,8 @@ server.registerTool(
 );
 
 const transport = new StdioServerTransport();
+// After initialize, remember who the client is: a Hermes install that came
+// through the Nous catalog cannot set OBSIDEO_SOURCE, so the client name is the
+// only attribution signal the shim can receive.
+server.server.oninitialized = () => setClientName(server.server.getClientVersion()?.name ?? "");
 await server.connect(transport);
