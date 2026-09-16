@@ -12,10 +12,17 @@ repo, each a single `manifest.yaml`. There is no self-serve tier: **entries are
 merged by Nous staff via PR review.** The catalog is browsable from the Hermes
 web dashboard and CLI with one-click install.
 
+## Acceptance run (done 2026-09-16 on 0.7.1, the third-party evaluation sequence)
+
+`node scripts/e2e-catalog.mjs phase1 <claim-email>` then `phase2 <home> <code>`: runs the
+exact manifest command in a fresh home. Cold install, auto-trial on first put, ls, verify
+3/3, get with SHA-256 match, backup_keys, usage, claim by email keeping the same account,
+put + verify after claim, 12 GB quota. PASS.
+
 ## To submit
 
 1. Publish the pinned version to npm first. The manifest pins an exact version
-   (`obsideo-mcp@0.6.0`) rather than floating, so a catalog install never
+   (`obsideo-mcp@0.7.1`; bump to 0.7.2 once published) rather than floating, so a catalog install never
    changes what it runs when we publish a release. That version must exist
    before the entry can be reviewed.
 2. Fork `NousResearch/hermes-agent`, add this file at
@@ -24,7 +31,7 @@ web dashboard and CLI with one-click install.
 
 ## Notes for review
 
-The catalog (68 entries as of 2026-09-11, including `dropbox` as a remote OAuth
+The catalog (65 entries as of 2026-09-16, including `dropbox` as a remote OAuth
 file store) has no entry that is encrypted on the user's machine before upload,
 none whose durability the client can verify itself, and none positioned as an
 offsite home for the agent's own `hermes backup` archive. That is the pitch;

@@ -6,8 +6,9 @@ manifest_version: 1
 
 name: obsideo
 description: >-
-  Durable object storage for agent artifacts and backups, encrypted on your
-  machine before upload, with possession proofs the client verifies itself.
+  Encrypted, verifiable file storage for agent artifacts and the hermes backup
+  archive: encrypted on this machine before upload, replicated to three
+  providers, possession proofs the client checks itself.
 source: https://github.com/Regan-Milne/obsideo-mcp
 
 # npm package, so transport.command IS the install (no `install:` block).
@@ -18,7 +19,7 @@ transport:
   command: npx
   args:
     - "-y"
-    - "obsideo-mcp@0.6.0"
+    - "obsideo-mcp@0.7.1"
 
 # No credentials to collect. The server provisions its own account on first
 # use (see post_install) and stores the credentials locally under ~/.obsideo.
@@ -43,6 +44,7 @@ tools:
     - trial
     - signup_start
     - signup_verify
+    - backup_keys
 
 # Composer-suggestion triggers (desktop brand pills).
 suggest:
