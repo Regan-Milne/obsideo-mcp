@@ -13,7 +13,8 @@
   ],
   "scripts": {
     "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc && node -e \"const fs=require('fs');const p='dist/index.js';fs.writeFileSync(p,'#!/usr/bin/env node\\n'+fs.readFileSync(p,'utf8'))\"",
-    "test": "node --test \"test/**/*.test.mjs\""
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "build:mcpb": "npm run build && esbuild dist/index.js --bundle --platform=node --format=esm --outfile=mcpb/server/index.mjs --banner:js=\"import { createRequire as __mcpbRequire } from 'module'; const require = __mcpbRequire(import.meta.url);\" && node -e \"require('fs').copyFileSync('package.json','mcpb/package.json')\" && node scripts/mcpb-check.mjs"
   },
   "keywords": [
     "mcp",
