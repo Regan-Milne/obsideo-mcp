@@ -183,12 +183,21 @@ server.registerTool(
       "Retrieve an object. Encrypted objects (the default for anything stored through this " +
       "server) are decrypted automatically with the local key; retrieval from a machine without " +
       "that key will fail, which is the intended property. Small text objects return inline; " +
-      "pass local_path for anything else.",
+      "pass local_path for anything else. WRITES TO DISK: passing local_path writes the bytes " +
+      "to that path and overwrites any existing file there, so treat it as a write operation " +
+      "and confirm the path with your human first.",
     inputSchema: {
       key: z.string(),
-      local_path: z.string().optional().describe("Save to this path instead of returning inline"),
+      local_path: z
+        .string()
+        .optional()
+        .describe("Save to this path instead of returning inline. Overwrites an existing file."),
     },
-    annotations: { readOnlyHint: true, openWorldHint: true },
+    // Not read-only: with local_path this writes to the local filesystem and overwrites.
+    // Clients use readOnlyHint to decide what may run without asking, so claiming it here
+    // removed the prompt in front of an arbitrary file write. Found during an outside
+    // agent review of the consent surface, 2026-09-21.
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
   },
   async ({ key, local_path }, extra) => withReporter(reporterFrom(extra), async () => {
     try {
