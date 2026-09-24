@@ -181,6 +181,36 @@ export interface VerifyResult {
 }
 
 /**
+ * The closing line of a verify result: what the verdict actually rested on.
+ *
+ * This used to read "trusted nothing the coordinator asserted" on every result,
+ * including when the root itself came from the coordinator and when no provider
+ * answered at all. Even at full strength that overclaims: the coordinator
+ * supplies which providers to ask, their addresses, and the public keys their
+ * signatures are checked against. What is independent is narrower, so say
+ * exactly that. Found during an outside agent review, 2026-09-22.
+ *
+ * Returns "" when no provider answered a challenge, because then there is no
+ * verdict to characterise and the caller already says not to treat it as verified.
+ */
+export function trustNote(r: Pick<VerifyResult, "strong" | "results">): string {
+  const answered = r.results.some((p) => p.pass || p.failed_proof);
+  if (!answered) return "";
+  if (r.strong) {
+    return (
+      "What this rested on: a root computed on this machine from your own bytes, and a challenge " +
+      "each provider had to answer against it. What still came from the coordinator: which " +
+      "providers to ask, their addresses, and the public keys their signatures were checked against."
+    );
+  }
+  return (
+    "What this rested on: the coordinator's recorded root. The providers were challenged directly, " +
+    "but only against what the coordinator says was stored, so this does not show they hold your " +
+    "bytes. Pass local_path for that."
+  );
+}
+
+/**
  * Verify an object by challenging its providers directly. `localPath` (your own
  * copy of the stored bytes) enables strong mode — proof that they hold YOUR
  * bytes; without it, verification falls back to the coordinator's recorded root

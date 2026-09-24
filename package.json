@@ -1,6 +1,6 @@
 {
   "name": "obsideo-mcp",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "mcpName": "io.obsideo/mcp",
   "description": "MCP server for Obsideo: S3-compatible storage that is encrypted client-side by default, with continuous cryptographic possession proofs you can verify yourself. Instant no-email trial, self-serve signup (12 GB free, no card), put/get/ls/rm/verify/usage tools. Runs on YOUR machine; credentials and keys never leave it.",
   "license": "PolyForm-Shield-1.0.0",

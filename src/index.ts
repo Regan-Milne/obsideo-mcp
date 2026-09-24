@@ -16,7 +16,7 @@ import { z } from "zod";
 import { signupStart, signupVerify } from "./signup.js";
 import { provisionTrial, refuseIfConfigured } from "./trial.js";
 import { get, ls, put, rm, usage } from "./storage.js";
-import { verifyObject } from "./verify.js";
+import { trustNote, verifyObject } from "./verify.js";
 import { plan, portal, upgrade } from "./billing.js";
 import { reporterFrom, withReporter } from "./progress.js";
 import { backupKeys } from "./backup.js";
@@ -252,13 +252,13 @@ server.registerTool(
     title: "Prove an object is really stored (client-side)",
     description:
       "Independently verify that the network still holds an object, without downloading it. " +
-      "Challenges each provider directly, recomputes the merkle root from your own copy of the " +
-      "bytes, and checks each provider's cryptographic signature. Trusts nothing the coordinator " +
-      "says for the verdict. Objects stored through this server verify at full strength with no " +
-      "extra arguments, because their commitment was recorded locally at upload time. Pass " +
-      "local_path (your copy of the stored file) to prove possession against a file on disk " +
-      "instead. Returns how many providers proved possession right now and whether any returned " +
-      "bad data.",
+      "Challenges each provider directly and checks every answer against a merkle root. For " +
+      "objects stored through this server, that root was computed on this machine at upload " +
+      "time, so the verdict rests on your own bytes with no extra arguments. Pass local_path " +
+      "(your copy of the stored file) to get the same strength for anything else. Without " +
+      "either, it falls back to the coordinator's recorded root and says so. In every case the " +
+      "coordinator supplies which providers to ask and their signing keys. Returns how many " +
+      "providers proved possession right now and whether any returned bad data.",
     inputSchema: {
       key: z.string().describe("Object key to verify, e.g. backups/db-2026-08-13.sql.zst"),
       local_path: z.string().optional().describe("Your local copy of the stored bytes (optional; only needed for objects this server did not upload)"),
@@ -300,7 +300,8 @@ server.registerTool(
         lines.push("\nWARNING: a provider answered but failed the proof. This is a real integrity alarm, not a network hiccup. Investigate before trusting this object.");
       else if (r.proved === 0)
         lines.push("\nNo provider could be challenged this way right now. Not necessarily loss (could be older nodes or rate limits), but do not treat this object as verified.");
-      lines.push("\nThis check trusted nothing the coordinator asserted: it went to the providers directly and checked the maths and signatures itself.");
+      const note = trustNote(r);
+      if (note) lines.push("\n" + note);
       return text(lines.join("\n"));
     } catch (e) {
       return errText(e);
