@@ -256,9 +256,10 @@ server.registerTool(
       "objects stored through this server, that root was computed on this machine at upload " +
       "time, so the verdict rests on your own bytes with no extra arguments. Pass local_path " +
       "(your copy of the stored file) to get the same strength for anything else. Without " +
-      "either, it falls back to the coordinator's recorded root and says so. In every case the " +
-      "coordinator supplies which providers to ask and their signing keys. Returns how many " +
-      "providers proved possession right now and whether any returned bad data.",
+      "either, it falls back to the coordinator's recorded root and says so. The check itself " +
+      "runs on this machine; the coordinator only supplies which providers hold the object and " +
+      "the public keys that identify them. Returns how many providers proved possession right " +
+      "now and whether any returned bad data.",
     inputSchema: {
       key: z.string().describe("Object key to verify, e.g. backups/db-2026-08-13.sql.zst"),
       local_path: z.string().optional().describe("Your local copy of the stored bytes (optional; only needed for objects this server did not upload)"),
