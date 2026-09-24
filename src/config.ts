@@ -86,8 +86,10 @@ export function saveConfig(cfg: ObsideoConfig): void {
  * Encryption is non-deterministic (fresh IV per put), so ciphertext cannot be
  * reproduced from the plaintext later. Without this, `verify` could never prove
  * "they hold MY bytes" for an encrypted object. This file is the user's own
- * commitment, computed on their machine from their own bytes — verifying
- * against it still trusts nothing the coordinator says.
+ * commitment, computed on their machine from their own bytes, so verifying
+ * against it does not depend on the coordinator's word about what was stored.
+ * (The coordinator still lists which providers hold it and their public keys,
+ * which affects who is named as holding a copy, not whether a copy is held.)
  */
 function loadRoots(): Record<string, RootRecord> {
   if (!existsSync(ROOTS_PATH)) return {};

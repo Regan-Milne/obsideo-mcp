@@ -181,6 +181,46 @@ export interface VerifyResult {
 }
 
 /**
+ * The closing line of a verify result: what the verdict actually rested on.
+ *
+ * This used to read "trusted nothing the coordinator asserted" on every result,
+ * including when the root itself came from the coordinator and when no provider
+ * answered at all.
+ *
+ * Two different questions are answered here and they rest on different things.
+ * Possession (are these exact bytes held?) is proven on this machine: it writes
+ * each challenge, the provider answers with the stored chunk and its merkle path,
+ * and the path must reach a root computed from the user's own bytes. No Obsideo
+ * server takes part in that check. Attribution (which provider answered?) comes
+ * from the signature, verified against the provider's public key as listed by
+ * the coordinator. So the coordinator's directory can affect the names, never the
+ * possession. Say that, rather than either overclaiming or underclaiming.
+ * Found during an outside agent review, 2026-09-22.
+ *
+ * Returns "" when no provider answered a challenge, because then there is no
+ * verdict to characterise and the caller already says not to treat it as verified.
+ */
+export function trustNote(r: Pick<VerifyResult, "strong" | "results">): string {
+  const answered = r.results.some((p) => p.pass || p.failed_proof);
+  if (!answered) return "";
+  if (r.strong) {
+    return (
+      "Possession was proven on this machine: it wrote each challenge, and each passing provider " +
+      "answered with the stored data itself, checked against a root computed from your own bytes. " +
+      "No Obsideo server takes part in that check. Each answer's signature shows which provider " +
+      "sent it, checked against that provider's public key as listed by the coordinator, so the " +
+      "provider names rely on that listing. The possession does not."
+    );
+  }
+  return (
+    "The providers answered this machine's challenges directly, but the root they were checked " +
+    "against is the coordinator's record of what was stored, not one computed from your bytes. " +
+    "This shows they hold what the coordinator says was stored, not that it matches your copy. " +
+    "Pass local_path for that."
+  );
+}
+
+/**
  * Verify an object by challenging its providers directly. `localPath` (your own
  * copy of the stored bytes) enables strong mode — proof that they hold YOUR
  * bytes; without it, verification falls back to the coordinator's recorded root
