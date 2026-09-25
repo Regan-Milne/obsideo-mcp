@@ -1,10 +1,12 @@
 /**
  * Client-side proof of retrievability.
  *
- * Challenges every provider holding an object directly and checks each
- * provider's signed response on this machine against the commitment this
- * client recorded at upload time. The coordinator is only asked where to go;
- * nothing it asserts is trusted for the verdict.
+ * Challenges every provider holding an object directly and compares each
+ * answer on this machine against a merkle root: one computed from a local file,
+ * one this client recorded at upload time, or, failing both, the coordinator's.
+ * The coordinator chooses which providers to ask, where to reach them, and the
+ * public keys their signatures are checked against. trustNote() below states
+ * which of those a given result relied on.
  */
 
 import { createHash, createPublicKey, verify as edVerify, randomBytes, randomInt } from "node:crypto";
@@ -187,37 +189,70 @@ export interface VerifyResult {
  * including when the root itself came from the coordinator and when no provider
  * answered at all.
  *
- * Two different questions are answered here and they rest on different things.
- * Possession (are these exact bytes held?) is proven on this machine: it writes
- * each challenge, the provider answers with the stored chunk and its merkle path,
- * and the path must reach a root computed from the user's own bytes. No Obsideo
- * server takes part in that check. Attribution (which provider answered?) comes
- * from the signature, verified against the provider's public key as listed by
- * the coordinator. So the coordinator's directory can affect the names, never the
- * possession. Say that, rather than either overclaiming or underclaiming.
- * Found during an outside agent review, 2026-09-22.
+ * Three separate facts, each stated only when it is true of this result:
  *
- * Returns "" when no provider answered a challenge, because then there is no
- * verdict to characterise and the caller already says not to treat it as verified.
+ *   what the answers were compared against  (rootSource, encryptedObject)
+ *   whether the answers were signed          (signed vs proved)
+ *   what the coordinator still chose          (always: providers, addresses, keys)
+ *
+ * The comparison itself runs on this machine. But the chunks, merkle paths,
+ * holder addresses and challenge tokens all arrive from servers the coordinator
+ * named, and an unsigned pass happens whenever the coordinator's listing has no
+ * public key for a provider. So no sentence here claims more than that.
+ *
+ * Nothing affirmative is said unless at least one provider passed: a result with
+ * only failed proofs already carries an integrity alarm, and must never be
+ * followed by a sentence that reads as success. 0.7.4 got that case wrong.
+ * Found during an outside agent review, 2026-09-22 and 2026-09-24.
  */
-export function trustNote(r: Pick<VerifyResult, "strong" | "results">): string {
-  const answered = r.results.some((p) => p.pass || p.failed_proof);
-  if (!answered) return "";
-  if (r.strong) {
-    return (
-      "Possession was proven on this machine: it wrote each challenge, and each passing provider " +
-      "answered with the stored data itself, checked against a root computed from your own bytes. " +
-      "No Obsideo server takes part in that check. Each answer's signature shows which provider " +
-      "sent it, checked against that provider's public key as listed by the coordinator, so the " +
-      "provider names rely on that listing. The possession does not."
+export function trustNote(
+  r: Pick<VerifyResult, "rootSource" | "encryptedObject" | "proved" | "signed">
+): string {
+  if (r.proved <= 0) return "";
+
+  const parts: string[] = [];
+
+  if (r.rootSource === "local-file") {
+    parts.push(
+      "The comparison ran on this machine, against a root computed just now from the file you " +
+        "passed as local_path, so it does not depend on the coordinator's word about what was stored."
+    );
+  } else if (r.rootSource === "recorded") {
+    parts.push(
+      "The comparison ran on this machine, against the root this machine recorded when it uploaded " +
+        "the object" +
+        (r.encryptedObject ? " (the root of the encrypted bytes, since the object is stored encrypted)" : "") +
+        ", so it does not depend on the coordinator's word about what was stored."
+    );
+  } else {
+    parts.push(
+      "The comparison ran on this machine, but against the coordinator's record of what was stored, " +
+        "not a root from your bytes. It shows the providers hold what the coordinator says was stored, " +
+        "not that it matches your copy. Pass local_path for that."
     );
   }
-  return (
-    "The providers answered this machine's challenges directly, but the root they were checked " +
-    "against is the coordinator's record of what was stored, not one computed from your bytes. " +
-    "This shows they hold what the coordinator says was stored, not that it matches your copy. " +
-    "Pass local_path for that."
-  );
+
+  const unsigned = r.proved - r.signed;
+  if (unsigned <= 0) {
+    parts.push(
+      "Every passing answer was signed, and each signature was checked against that provider's " +
+        "public key as listed by the coordinator, so which provider answered relies on that listing."
+    );
+  } else if (r.signed === 0) {
+    parts.push(
+      "None of the passing answers were signed, because the coordinator's listing had no public key " +
+        "for those providers, so this does not show which provider answered."
+    );
+  } else {
+    parts.push(
+      `${r.signed} of ${r.proved} passing answers were signed and checked against the provider's ` +
+        "public key as listed by the coordinator. The rest were unsigned, because the listing had no " +
+        "public key for those providers, so for them this does not show which provider answered."
+    );
+  }
+
+  parts.push("The coordinator also chose which providers to ask and where to reach them.");
+  return parts.join(" ");
 }
 
 /**
