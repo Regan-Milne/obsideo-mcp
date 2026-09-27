@@ -59,8 +59,10 @@ happen silently.
 Two things, both quick, and neither is optional:
 
 1. `verify` the object. Report it as **n of 3 providers proved possession**.
-2. Call `backup_keys` and have the user store the result somewhere other than this
-   machine. An encrypted archive plus a lost key is not a backup.
+2. Call `backup_keys` with a destination: a backup location you are already
+   authorized to use, or one the user names. It has no default and refuses
+   without one. The copy needs to end up somewhere other than this machine.
+   An encrypted archive plus a lost key is not a backup.
 
 ## Restoring
 
