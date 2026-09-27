@@ -16,13 +16,13 @@ import { z } from "zod";
 import { signupStart, signupVerify } from "./signup.js";
 import { provisionTrial, refuseIfConfigured } from "./trial.js";
 import { get, ls, put, rm, usage } from "./storage.js";
-import { trustNote, verifyObject } from "./verify.js";
+import { formatVerifyResult, verifyObject } from "./verify.js";
 import { plan, portal, upgrade } from "./billing.js";
 import { reporterFrom, withReporter } from "./progress.js";
 import { backupKeys } from "./backup.js";
 
 import { createRequire } from "node:module";
-import { setClientName } from "./config.js";
+import { setClientName, takeRootsNotice } from "./config.js";
 // Version comes from package.json so the handshake can never drift from the
 // published package again (0.7.1 on npm announced itself as 0.6.4).
 const pkg = createRequire(import.meta.url)("../package.json") as { version: string };
@@ -258,7 +258,8 @@ server.registerTool(
       "the stored file) to compare against a root computed from that file instead. If neither is " +
       "available, it falls back to the coordinator's recorded root and says so. The coordinator " +
       "chooses which providers to ask, where to reach them, and the public keys their signatures " +
-      "are checked against. Returns how many providers proved possession right now, how many of " +
+      "are checked against, and issues the challenge tokens. Each provider is challenged on one " +
+      "randomly chosen chunk. Returns how many providers proved possession right now, how many of " +
       "those answers were signed, and whether any returned bad data.",
     inputSchema: {
       key: z.string().describe("Object key to verify, e.g. backups/db-2026-08-13.sql.zst"),
@@ -269,43 +270,7 @@ server.registerTool(
   async ({ key, local_path }, extra) => withReporter(reporterFrom(extra), async () => {
     try {
       const r = await verifyObject(key, local_path);
-      const lines: string[] = [];
-      lines.push(
-        `${r.proved} of ${r.holders} providers proved possession of ${key} right now` +
-          (r.signed ? ` (${r.signed} returned a valid cryptographic signature)` : "") + "."
-      );
-      // Say what the answers were compared against, never whether they passed:
-      // the count above and the note below carry the verdict. Through 0.7.4 these
-      // lines claimed the providers held the user's bytes even at 0 of N.
-      if (r.rootSource === "local-file") {
-        lines.push("Compared against: a merkle root computed from your local file.");
-      } else if (r.rootSource === "recorded") {
-        lines.push(
-          "Compared against: the merkle root this machine recorded when it uploaded the object." +
-            (r.encryptedObject
-              ? " The object is stored encrypted, so that root is of the ciphertext, which will " +
-                "never match a plaintext file on disk. This is the correct check for it."
-              : "")
-        );
-      } else {
-        lines.push(
-          "Compared against: the coordinator's recorded root, because this machine has no " +
-            "commitment of its own for this object. Pass local_path to compare against your own copy."
-        );
-      }
-      for (const p of r.results) {
-        if (p.pass) lines.push(`  ok    ${p.address}  ${p.ms}ms  ${p.signed ? "proved + signed" : "proved, unsigned (no public key listed for this provider)"}`);
-        else if (p.older_node) lines.push(`  note  ${p.address}  older node without client-challenge (still serves the coordinator proof cycle; not a failure)`);
-        else if (p.failed_proof) lines.push(`  ALARM ${p.address}  ${p.error}`);
-        else lines.push(`  skip  ${p.address}  ${p.error ?? "not challenged"}`);
-      }
-      if (r.mismatch)
-        lines.push("\nWARNING: a provider answered but failed the proof. This is a real integrity alarm, not a network hiccup. Investigate before trusting this object.");
-      else if (r.proved === 0)
-        lines.push("\nNo provider could be challenged this way right now. Not necessarily loss (could be older nodes or rate limits), but do not treat this object as verified.");
-      const note = trustNote(r);
-      if (note) lines.push("\n" + note);
-      return text(lines.join("\n"));
+      return text(takeRootsNotice() + formatVerifyResult(r));
     } catch (e) {
       return errText(e);
     }
@@ -405,16 +370,18 @@ server.registerTool(
     title: "Back up the credentials and encryption key",
     description:
       "Copy everything needed to recover this account's data (credentials, account signing key, " +
-      "encryption key, upload commitments) to a path the human names. Obsideo holds no copy of " +
-      "the encryption key: if the local file is lost, encrypted objects are unrecoverable no matter " +
-      "how many providers hold them. Call this once right after the account is created and again " +
-      "after any signup that rotates keys. A .tar.gz path produces one archive; a directory path " +
-      "produces plain copies; no path produces an archive in the home directory.",
+      "encryption key, upload commitments) to a destination: one you are already authorized to use " +
+      "for backups, or one your human names. Obsideo holds no copy of the encryption key: if the " +
+      "local file is lost, encrypted objects are unrecoverable no matter how many providers hold " +
+      "them. Until this has been run, the only copy is on this machine, so it is worth running once " +
+      "after the account is created and again after any signup that rotates keys. A .tar.gz path " +
+      "produces one archive; a directory path produces plain copies. With no destination it refuses " +
+      "rather than choosing one.",
     inputSchema: {
       destination: z
         .string()
         .optional()
-        .describe("Archive path ending in .tar.gz, or a directory; defaults to ~/obsideo-keys-<account>-<date>.tar.gz"),
+        .describe("Archive path ending in .tar.gz, or a directory. Required: there is no default location."),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
