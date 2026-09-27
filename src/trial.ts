@@ -17,8 +17,8 @@ import { fetchOnce } from "./net.js";
 import { report, sleepWithCountdown } from "./progress.js";
 import { generateKey } from "./crypto.js";
 import { createHash } from "node:crypto";
-import { generateSigningKey } from "./signup.js";
-import { defaultSource, loadConfig, saveConfig, type ObsideoConfig } from "./config.js";
+import { commitAccount, newSigningKey } from "./signup.js";
+import { defaultSource, loadConfig, type ObsideoConfig } from "./config.js";
 
 const SIGNUP_BASE = process.env.OBSIDEO_SIGNUP_URL ?? "https://signup.obsideo.io";
 
@@ -127,7 +127,7 @@ export async function provisionTrial(source = defaultSource()): Promise<TrialRes
   if (remaining > 0) await sleepWithCountdown(remaining * 1000 + 250, "Waiting out the issuance window");
 
   await report("Registering the account and its signing key", 4, 5);
-  const pubkey = generateSigningKey();
+  const key = newSigningKey(); // written only once the service accepts it
   // Declare the transport. "direct" lets the signup service return at once
   // instead of waiting up to ~30 s for the S3 gateway to learn the new key
   // (we never use the gateway on that path; storage.ts picks direct whenever
@@ -137,13 +137,13 @@ export async function provisionTrial(source = defaultSource()): Promise<TrialRes
   const r = await post("/v1/trial/redeem", {
     ticket: start.ticket,
     nonce,
-    customer_signing_public_key: pubkey,
+    customer_signing_public_key: key.publicKey,
     source,
     transport,
   });
 
   const cfg = loadConfig();
-  saveConfig({
+  commitAccount(key, {
     ...cfg,
     email: `trial:${r.agent_name}`,
     account_id: r.account_id,
