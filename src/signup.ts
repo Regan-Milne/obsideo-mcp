@@ -15,8 +15,15 @@
 import { fetchOnce } from "./net.js";
 import { generateKey } from "./crypto.js";
 import { generateKeyPairSync } from "node:crypto";
-import { writeFileSync, chmodSync, mkdirSync } from "node:fs";
-import { CONFIG_DIR, SIGNING_KEY_PATH, defaultSource, loadConfig, saveConfig } from "./config.js";
+import { writeFileSync, chmodSync, mkdirSync, existsSync, readFileSync, renameSync, rmSync } from "node:fs";
+import {
+  CONFIG_DIR,
+  SIGNING_KEY_PATH,
+  defaultSource,
+  loadConfig,
+  saveConfig,
+  type ObsideoConfig,
+} from "./config.js";
 
 const SIGNUP_BASE = process.env.OBSIDEO_SIGNUP_URL ?? "https://signup.obsideo.io";
 
@@ -85,21 +92,57 @@ export async function signupStart(
   return r.message ?? "Verification code sent. Check the inbox (and spam).";
 }
 
-export function generateSigningKey(): string {
+/**
+ * A new account signing keypair, held in memory until the server has accepted
+ * its public half.
+ *
+ * Through 0.7.5 the private key was written to signing.pem before the signup
+ * request was even sent, so a wrong code, a timeout or a 500 left the old
+ * credentials on disk paired with a new key the server had never seen. Now
+ * nothing on disk changes until the server confirms; then the key and the
+ * config are written together (see commitAccount). Found during an outside
+ * agent review, 2026-09-22; regression test from bridge PR #13.
+ */
+export interface PendingSigningKey {
+  pem: string;
+  /** "obk_sig_" + base64url raw Ed25519 public key, as the signup service expects */
+  publicKey: string;
+}
+
+export function newSigningKey(): PendingSigningKey {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+  const der = publicKey.export({ format: "der", type: "spki" }) as Buffer;
+  const raw = der.subarray(der.length - 32); // SPKI suffix = raw Ed25519 key
+  return {
+    pem: privateKey.export({ format: "pem", type: "pkcs8" }) as string,
+    publicKey: "obk_sig_" + raw.toString("base64url"),
+  };
+}
+
+/**
+ * Write a server-confirmed signing key and the matching config. The key goes
+ * in by rename, so signing.pem is always either the old key or the new one,
+ * never half of either. If the config cannot be saved, the old key is put back
+ * so the two files still agree with each other.
+ */
+export function commitAccount(key: PendingSigningKey, cfg: ObsideoConfig): void {
   mkdirSync(CONFIG_DIR, { recursive: true });
-  writeFileSync(
-    SIGNING_KEY_PATH,
-    privateKey.export({ format: "pem", type: "pkcs8" }) as string
-  );
+  const prior = existsSync(SIGNING_KEY_PATH) ? readFileSync(SIGNING_KEY_PATH) : null;
+  const tmp = SIGNING_KEY_PATH + ".new";
+  writeFileSync(tmp, key.pem, { mode: 0o600 });
   try {
-    chmodSync(SIGNING_KEY_PATH, 0o600);
+    chmodSync(tmp, 0o600);
   } catch {
     /* windows */
   }
-  const der = publicKey.export({ format: "der", type: "spki" }) as Buffer;
-  const raw = der.subarray(der.length - 32); // SPKI suffix = raw Ed25519 key
-  return "obk_sig_" + raw.toString("base64url");
+  renameSync(tmp, SIGNING_KEY_PATH);
+  try {
+    saveConfig(cfg);
+  } catch (e) {
+    if (prior) writeFileSync(SIGNING_KEY_PATH, prior, { mode: 0o600 });
+    else rmSync(SIGNING_KEY_PATH, { force: true });
+    throw e;
+  }
 }
 
 export async function signupVerify(email: string, code: string): Promise<string> {
@@ -123,15 +166,15 @@ export async function signupVerify(email: string, code: string): Promise<string>
     );
   }
 
-  const pubkey = generateSigningKey();
+  const key = newSigningKey();
   const r = await post("/v1/auth/verify", {
     email,
     code,
-    customer_signing_public_key: pubkey,
+    customer_signing_public_key: key.publicKey,
   });
   const { pending_signup_mode: _drop, trial: _t, agent_name: _a, trial_expires_at: _e, ...rest } =
     loadConfig();
-  saveConfig({
+  commitAccount(key, {
     ...rest,
     email,
     account_id: r.account_id,

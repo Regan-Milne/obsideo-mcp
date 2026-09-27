@@ -36,8 +36,9 @@ The encryption key is generated on your machine when the account is created and 
 If that file is lost, every encrypted object is permanently unreadable, no
 matter how many providers still hold it and how many proofs it passes.
 Replication protects against providers losing your bytes; it does not protect
-against you losing your key. Call `backup_keys` right after signup and keep the
-archive somewhere you would still have after losing this machine. Encrypted
+against you losing your key. Call `backup_keys` with a destination right after
+signup and keep the archive somewhere you would still have after losing this
+machine. Encrypted
 objects are readable only with this key: there is no sharing of encrypted objects
 between people or machines today, so treat an account as one person's.
 
@@ -46,7 +47,9 @@ as committed at upload time. It holds no secrets, and it is what lets `verify`
 prove providers hold *your* bytes without re-uploading them. Encryption uses a
 fresh IV per upload, so ciphertext cannot be recomputed from a plaintext file
 later; this record is what keeps the strong proof available for encrypted
-objects. Losing it costs you strength of proof, not data.
+objects. Losing it costs you strength of proof, not data. If it is damaged, the
+server moves it aside unchanged and says so in the next result, rather than
+overwriting it.
 
 ## Install
 
@@ -102,7 +105,7 @@ store its own MEMORY.md on obsideo, then to verify it.
 | `rm` | Delete an object |
 | `verify` | Prove the network still holds an object, without downloading it |
 | `usage` | Storage used vs quota, plus the plan line |
-| `backup_keys` | Copy credentials, signing key and encryption key to a path the human names (archive or folder). Obsideo has no copy of the key; call it right after signup |
+| `backup_keys` | Copy credentials, signing key, encryption key and upload commitments to a destination you give it (a .tar.gz path or a folder). No default: without a destination it refuses. Obsideo has no copy of the key |
 | `plan` | Free tier or paid blocks, status, period end, any offer waiting for the human |
 | `upgrade` | Stripe checkout link for N x 200 GB blocks. Charges nothing; the human pays on Stripe's page. Never changes an existing plan |
 | `portal` | Stripe portal link: cancel, change card, invoices |
@@ -119,13 +122,18 @@ account returns to its free quota at the end of the paid period.
 
 ### `verify`
 
-Challenges every provider holding the object directly, recomputes the merkle
-root, and checks each provider's Ed25519 signature. It asks the coordinator only
-*where* to go; nothing the coordinator asserts is trusted for the verdict. For
-objects this server uploaded, it verifies against the commitment recorded
-locally at upload time, so the answer is "they hold *my* bytes" rather than
-"they agree with each other". Objects uploaded elsewhere can be verified by
-passing `local_path`.
+Challenges every provider holding the object directly, on one randomly chosen
+chunk each, and compares each answer on this machine against a merkle root. For
+objects this server uploaded, that is the root recorded locally at upload time,
+so a pass means the provider holds *your* bytes rather than agreeing with the
+others. Objects uploaded elsewhere can be checked against a file you pass as
+`local_path`. With neither, it falls back to the coordinator's root and says so.
+
+The coordinator still chooses which providers to ask and where to reach them,
+issues the challenge tokens, and lists the public keys that providers'
+signatures are checked against. The result states which of these it relied on.
+When a provider fails the proof or cannot be challenged, the result says so
+first and speaks only for the providers that passed.
 
 ## What it is good for
 

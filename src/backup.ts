@@ -11,7 +11,6 @@
  */
 
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { gzipSync } from "node:zlib";
 import { CONFIG_DIR, CONFIG_PATH, SIGNING_KEY_PATH, expandPath, loadConfig } from "./config.js";
@@ -51,10 +50,20 @@ export function backupKeys(destination?: string): string {
   }
   const present = FILES.filter((f) => existsSync(f));
   if (!present.includes(CONFIG_PATH)) throw new Error(`${CONFIG_PATH} is missing; nothing to back up.`);
-  const stamp = new Date().toISOString().slice(0, 10);
-  const target = destination
-    ? expandPath(destination)
-    : resolve(homedir(), `obsideo-keys-${cfg.account_id ?? "account"}-${stamp}.tar.gz`);
+  // No default location. Through 0.7.5 an empty call wrote the archive to a
+  // predictable path in the home directory, which put the decryption key
+  // somewhere nobody chose. Where key material goes is decided by whoever has
+  // the authority to decide it, so the tool refuses rather than guessing.
+  // Conceded on bridge #4.
+  if (!destination || !destination.trim()) {
+    throw new Error(
+      "backup_keys needs a destination and has no default, so nothing was written. The encryption " +
+        "key exists only on this machine and Obsideo has no copy, so if this machine is lost before a " +
+        "copy exists somewhere else, the encrypted data cannot be recovered. Pass a .tar.gz path or a " +
+        "directory: a backup location you are already authorized to use, or one your human names."
+    );
+  }
+  const target = expandPath(destination);
   const names = present.map((f) => basename(f)).join(", ");
   const warn = cfg.encryption_key
     ? ""

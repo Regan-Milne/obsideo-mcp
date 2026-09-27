@@ -7,7 +7,7 @@
  * Obsideo never hosts this server and never sees these files.
  */
 
-import { mkdirSync, readFileSync, writeFileSync, chmodSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, chmodSync, existsSync, renameSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -91,17 +91,77 @@ export function saveConfig(cfg: ObsideoConfig): void {
  * (The coordinator still lists which providers hold it and their public keys,
  * which affects who is named as holding a copy, not whether a copy is held.)
  */
+/*
+ * A damaged roots.json must never block storage, and must never be dropped
+ * silently either: through 0.7.5 a file that failed to parse was read as empty
+ * and the next upload overwrote it, taking every recorded commitment with it
+ * and quietly turning later verifies into coordinator-root checks. Now the bad
+ * file is moved aside intact (roots.json.corrupt-<time>) and the problem is
+ * reported twice: on stderr, and once in the next put or verify result, since
+ * an agent reads the result and may never see stderr. A failed write is
+ * reported the same way. Found during an outside agent review, 2026-09-22;
+ * regression test from bridge PR #13 (Grok).
+ */
+let rootsNotice = "";
+
+function rootsProblem(msg: string): void {
+  process.stderr.write(`obsideo-mcp: ${msg}\n`);
+  rootsNotice += (rootsNotice ? " " : "") + msg;
+}
+
+/** The roots.json problem since the last call, as a prefix for a tool result; empty when none. */
+export function takeRootsNotice(): string {
+  const n = rootsNotice;
+  rootsNotice = "";
+  return n ? `NOTE: ${n}\n\n` : "";
+}
+
 function loadRoots(): Record<string, RootRecord> {
   if (!existsSync(ROOTS_PATH)) return {};
+  let raw: string;
   try {
-    return JSON.parse(readFileSync(ROOTS_PATH, "utf8"));
+    raw = readFileSync(ROOTS_PATH, "utf8");
+  } catch (e) {
+    rootsProblem(
+      `could not read ${ROOTS_PATH} (${(e as Error).message}). It was left as it is; until it can ` +
+        "be read, no new upload commitments are recorded and verify uses the coordinator's root."
+    );
+    throw new RootsUnwritable();
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+    throw new Error("not a JSON object");
   } catch {
-    return {}; // a corrupt cache must never block storage
+    const aside = `${ROOTS_PATH}.corrupt-${new Date().toISOString().replace(/[:.]/g, "")}`;
+    try {
+      renameSync(ROOTS_PATH, aside);
+      rootsProblem(
+        `${ROOTS_PATH} could not be parsed, so it was moved aside unchanged to ${aside} and a new ` +
+          "one started. Objects whose upload commitment was only in the old file will verify " +
+          "against the coordinator's root until it is repaired."
+      );
+    } catch (e) {
+      rootsProblem(
+        `${ROOTS_PATH} could not be parsed and could not be moved aside (${(e as Error).message}); ` +
+          "it was left as it is and no new commitments are being recorded."
+      );
+      throw new RootsUnwritable();
+    }
+    return {};
   }
 }
 
+class RootsUnwritable extends Error {}
+
 export function recordRoot(bucket: string, key: string, rec: RootRecord): void {
-  const roots = loadRoots();
+  let roots: Record<string, RootRecord>;
+  try {
+    roots = loadRoots();
+  } catch (e) {
+    if (e instanceof RootsUnwritable) return; // already reported; never overwrite a file we could not move
+    throw e;
+  }
   roots[`${bucket}/${key}`] = rec;
   const keys = Object.keys(roots);
   if (keys.length > ROOTS_MAX) {
@@ -113,13 +173,22 @@ export function recordRoot(bucket: string, key: string, rec: RootRecord): void {
   try {
     mkdirSync(CONFIG_DIR, { recursive: true });
     writeFileSync(ROOTS_PATH, JSON.stringify(roots, null, 2) + "\n");
-  } catch {
-    // Best-effort: failing to cache a root must never fail the upload.
+  } catch (e) {
+    // Failing to record a root must never fail the upload, but it is said.
+    rootsProblem(
+      `the upload commitment for ${key} could not be saved to ${ROOTS_PATH} ` +
+        `(${(e as Error).message}), so verify will compare it against the coordinator's root.`
+    );
   }
 }
 
 export function lookupRoot(bucket: string, key: string): RootRecord | undefined {
-  return loadRoots()[`${bucket}/${key}`];
+  try {
+    return loadRoots()[`${bucket}/${key}`];
+  } catch (e) {
+    if (e instanceof RootsUnwritable) return undefined;
+    throw e;
+  }
 }
 
 export function requireCreds(cfg: ObsideoConfig): asserts cfg is Required<

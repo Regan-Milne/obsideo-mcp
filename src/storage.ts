@@ -18,6 +18,7 @@ import {
   saveConfig,
   requireCreds,
   recordRoot,
+  takeRootsNotice,
   expandPath,
   CONFIG_PATH,
   type ObsideoConfig,
@@ -195,6 +196,7 @@ export async function put(args: PutArgs): Promise<string> {
     at: new Date().toISOString(),
   });
   return (
+    takeRootsNotice() +
     provisionNote +
     `Stored ${args.key} (${data.length} bytes${
       wantEncrypt

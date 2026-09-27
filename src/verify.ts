@@ -121,6 +121,13 @@ function verifyResponse(challenge: any, response: any, commitment: Commitment, p
     return { pass: !pubkeyHex, integrity: true, signed: false };
   }
   if (!pubkeyHex) return { pass: true, integrity: true, signed: false };
+  // This client always asks for proof_version 2, which the provider calls V1
+  // raw: the whole chunk comes back and is signed with block index 0. Version 4
+  // is the provider's compact mode (one 4 KiB block within the chunk, signed
+  // with that block's index). It is never requested here, and any answer that
+  // claims it has already passed the same chunk-hash and merkle checks against
+  // the root above, so the branch only picks which index the signature covers;
+  // it cannot turn a failed proof into a pass. It mirrors the provider's payload.
   const blockIndex = response.proof_version === 4 ? response.merkle_proof.index : 0;
   const signed = verifyEd25519(pubkeyHex, sigPayload(response, blockIndex, raw), response.signature);
   return { pass: signed, integrity: true, signed };
@@ -178,6 +185,8 @@ export interface VerifyResult {
   holders: number;
   proved: number;
   signed: number;
+  /** providers that answered but failed the proof */
+  failed: number;
   mismatch: boolean; // a provider returned wrong bytes / bad signature — a real alarm
   results: VerifyProviderResult[];
 }
@@ -203,14 +212,38 @@ export interface VerifyResult {
  * Nothing affirmative is said unless at least one provider passed: a result with
  * only failed proofs already carries an integrity alarm, and must never be
  * followed by a sentence that reads as success. 0.7.4 got that case wrong.
- * Found during an outside agent review, 2026-09-22 and 2026-09-24.
+ *
+ * Partial success is scoped, not rounded up. When a provider failed the proof,
+ * the note names that first and every later sentence covers only the providers
+ * that passed; when some were never challenged, it says the note is silent on
+ * them. 0.7.5 got both wrong: it printed its affirmative paragraph straight under
+ * the ALARM, and a 1-of-3 fallback said "the providers" as if all three passed.
+ * Found during an outside agent review, 2026-09-22, 2026-09-24 and 2026-09-25.
  */
 export function trustNote(
-  r: Pick<VerifyResult, "rootSource" | "encryptedObject" | "proved" | "signed">
+  r: Pick<VerifyResult, "rootSource" | "encryptedObject" | "proved" | "signed"> &
+    Partial<Pick<VerifyResult, "holders" | "failed">>
 ): string {
   if (r.proved <= 0) return "";
 
   const parts: string[] = [];
+  const failed = r.failed ?? 0;
+  const holders = r.holders ?? r.proved + failed;
+
+  if (failed > 0) {
+    parts.push(
+      `This is not a clean result: ${failed} of ${holders} ${holders === 1 ? "provider" : "providers"} ` +
+        `answered but failed the proof (the ALARM above). The rest of this note covers only the ` +
+        `${r.proved} that passed.`
+    );
+  }
+  const unchecked = holders - r.proved - failed;
+  if (unchecked > 0) {
+    parts.push(
+      `${unchecked} of ${holders} could not be challenged this time (see the lines above), so this ` +
+        "says nothing about them."
+    );
+  }
 
   if (r.rootSource === "local-file") {
     parts.push(
@@ -227,8 +260,8 @@ export function trustNote(
   } else {
     parts.push(
       "The comparison ran on this machine, but against the coordinator's record of what was stored, " +
-        "not a root from your bytes. It shows the providers hold what the coordinator says was stored, " +
-        "not that it matches your copy. Pass local_path for that."
+        "not a root from your bytes. Each passing answer shows that its responder holds data matching " +
+        "the coordinator-supplied root, not that it matches your copy. Pass local_path for that."
     );
   }
 
@@ -251,8 +284,59 @@ export function trustNote(
     );
   }
 
-  parts.push("The coordinator also chose which providers to ask and where to reach them.");
+  parts.push(
+    "The coordinator also chose which providers to ask and where to reach them, and issued the " +
+      "challenge tokens; the chunks and merkle paths came from the providers it named."
+  );
   return parts.join(" ");
+}
+
+/**
+ * The whole text of a verify result. Lives here rather than in index.ts so the
+ * states that matter can be tested as the agent reads them: index.js cannot be
+ * imported without starting the server.
+ */
+export function formatVerifyResult(r: VerifyResult): string {
+  const lines: string[] = [];
+  // Each provider is challenged on one chunk, not the whole object: say so on
+  // the line most likely to be read as the verdict.
+  lines.push(
+    `${r.proved} of ${r.holders} providers proved possession of ${r.key} right now ` +
+      "(one randomly chosen chunk per provider)" +
+      (r.signed ? `; ${r.signed} returned a valid cryptographic signature` : "") + "."
+  );
+  // Say what the answers were compared against, never whether they passed:
+  // the count above and the note below carry the verdict. Through 0.7.4 these
+  // lines claimed the providers held the user's bytes even at 0 of N.
+  if (r.rootSource === "local-file") {
+    lines.push("Compared against: a merkle root computed from your local file.");
+  } else if (r.rootSource === "recorded") {
+    lines.push(
+      "Compared against: the merkle root this machine recorded when it uploaded the object." +
+        (r.encryptedObject
+          ? " The object is stored encrypted, so that root is of the ciphertext, which will " +
+            "never match a plaintext file on disk. This is the correct check for it."
+          : "")
+    );
+  } else {
+    lines.push(
+      "Compared against: the coordinator's recorded root, because this machine has no " +
+        "commitment of its own for this object. Pass local_path to compare against your own copy."
+    );
+  }
+  for (const p of r.results) {
+    if (p.pass) lines.push(`  ok    ${p.address}  ${p.ms}ms  ${p.signed ? "proved + signed" : "proved, unsigned (no public key listed for this provider)"}`);
+    else if (p.older_node) lines.push(`  note  ${p.address}  older node without client-challenge (still serves the coordinator proof cycle; not a failure)`);
+    else if (p.failed_proof) lines.push(`  ALARM ${p.address}  ${p.error}`);
+    else lines.push(`  skip  ${p.address}  ${p.error ?? "not challenged"}`);
+  }
+  if (r.mismatch)
+    lines.push("\nWARNING: a provider answered but failed the proof. This is a real integrity alarm, not a network hiccup. Investigate before trusting this object.");
+  else if (r.proved === 0)
+    lines.push("\nNo provider could be challenged this way right now. Not necessarily loss (could be older nodes or rate limits), but do not treat this object as verified.");
+  const note = trustNote(r);
+  if (note) lines.push("\n" + note);
+  return lines.join("\n");
 }
 
 /**
@@ -395,6 +479,7 @@ export async function verifyObject(key: string, localPath?: string): Promise<Ver
     holders: holders.length,
     proved: results.filter((r) => r.pass).length,
     signed: results.filter((r) => r.signed).length,
+    failed: results.filter((r) => r.failed_proof).length,
     mismatch,
     results,
   };
