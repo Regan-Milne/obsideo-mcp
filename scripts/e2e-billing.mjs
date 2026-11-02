@@ -59,10 +59,10 @@ if (claimEmail && code) {
     fail("credentials changed on claim (must be unchanged)");
   if (after.pending_signup_mode) fail("pending_signup_mode not cleared");
   const u = await call("usage");
-  if (!/of 12(\.0)? GB/.test(u.text)) fail("usage does not show the 12 GB tier: " + u.text);
+  if (!/of 8(\.0)? GB/.test(u.text)) fail("usage does not show the 8 GB tier: " + u.text);
   const g = await call("get", { key: "mcp-billing-e2e/hello.txt" });
   if (!/billing e2e/.test(g.text)) fail("data written before the claim is not readable after it");
-  console.log("\nCLAIM PASS: same account, same creds, 12 GB, data intact.");
+  console.log("\nCLAIM PASS: same account, same creds, 8 GB, data intact.");
   await client.close();
   process.exit(0);
 }

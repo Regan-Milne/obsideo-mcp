@@ -11,7 +11,7 @@
       "name": "obsideo",
       "source": "./claude-plugin",
       "displayName": "Obsideo Storage",
-      "description": "Encrypted offsite object storage for your projects and your Claude Code setup, with possession proofs you can verify yourself. Free trial with no signup, 12 GB free with an email.",
+      "description": "Encrypted offsite object storage for your projects and your Claude Code setup, with possession proofs you can verify yourself. Free trial with no signup, 8 GB free with an email.",
       "version": "0.1.0",
       "author": {
         "name": "Obsideo Technologies Inc.",

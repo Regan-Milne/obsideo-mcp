@@ -99,7 +99,7 @@ export interface TrialResult {
  */
 /**
  * Refuse to replace a working account by accident. The 2026-09-11 Hermes run
- * called `trial` on a machine that already had a claimed 12 GB account and
+ * called `trial` on a machine that already had a claimed email-tier account and
  * silently swapped its credentials and signing key for a fresh 100 MB trial.
  * Explicit replacement stays possible; accidental replacement does not.
  */
@@ -183,8 +183,8 @@ export async function ensureCreds(
   if (AUTO_TRIAL_DISABLED) {
     throw new Error(
       "No Obsideo credentials configured and auto-trial is disabled " +
-        "(OBSIDEO_NO_AUTO_TRIAL). Run signup_start + signup_verify for the 12 GB " +
-        "email tier, or unset OBSIDEO_NO_AUTO_TRIAL to auto-create a free trial."
+        "(OBSIDEO_NO_AUTO_TRIAL). Run signup_start + signup_verify for the free email tier " +
+        "(8 GB, no card, no expiry), or unset OBSIDEO_NO_AUTO_TRIAL to auto-create a free trial."
     );
   }
 
@@ -194,7 +194,8 @@ export async function ensureCreds(
     `${t.quota_mb} MB, expires ${t.expires_at ?? "in ~7 days"}. It lives on the production ` +
     `network with RF=3 replication and continuous possession proofs. Tell your human: this is a ` +
     `trial (small and temporary); to keep the data, claim it with an email via signup_start ` +
-    `(12 GB free, no card, no expiry; same account, nothing moves). Credentials AND the encryption ` +
+    `(8 GB free, no card, no expiry, 16 GB after the account holder answers eight questions in the ` +
+    `Drive web app; same account, nothing moves). Credentials AND the encryption ` +
     `key were saved locally under ~/.obsideo; Obsideo has no copy of the key. Call backup_keys now ` +
     `with a path the human names.\n\n`;
   return { cfg: loadConfig(), note, provisioned: true };

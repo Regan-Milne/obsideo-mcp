@@ -47,7 +47,7 @@ const server = createServer((req, res) => {
     if (req.method === "GET" && url === "/v1/billing") return send(200, billingStatus());
     if (req.method === "GET" && url === "/v1/account/usage") {
       return send(200, {
-        account_id: "mock-account", used_bytes: 76, quota_bytes: 12 * 1024 ** 3, quota_gb: 12.0,
+        account_id: "mock-account", used_bytes: 76, quota_bytes: 8 * 1024 ** 3, quota_gb: 8.0,
         percent_used: 0.0, billing: billingStatus(),
       });
     }
@@ -71,12 +71,12 @@ const server = createServer((req, res) => {
       if (email === "taken@example.com") return send(409, { detail: { error: "email_in_use", message: "That address already has an account. Sign in to it with POST /v1/auth/start — this trial cannot be merged into it." } });
       return send(200, { ok: true, email, next: "POST /v1/trial/claim/verify with {email, code}",
         keeps: "Your account id, bucket, keys and everything already uploaded stay exactly as they are. Claiming raises the quota; it does not move your data.",
-        quota_after_gb: 12.0 });
+        quota_after_gb: 8.0 });
     }
     if (req.method === "POST" && url === "/v1/trial/claim/verify") {
       const { email, code } = JSON.parse(body || "{}");
       if (code !== "123456") return send(400, { detail: { error: "otp_error", message: "Wrong code." } });
-      return send(200, { ok: true, claimed: true, account_id: "trial-spry-meerkat", email, quota_gb: 12.0,
+      return send(200, { ok: true, claimed: true, account_id: "trial-spry-meerkat", email, quota_gb: 8.0,
         credentials_unchanged: true, message: "Claimed. Same account, same bucket, same keys — your data is untouched and the quota is now the full free tier." });
     }
     send(404, { detail: "Not Found" });

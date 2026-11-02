@@ -43,8 +43,9 @@ result somewhere safe. Obsideo cannot recover your data without it, and neither 
 ## Free tier
 
 A first `put` creates a trial account automatically: 100 MB, about a week, no email and
-no card. Claiming it with an email moves the *same* account to 12 GB free with no
-expiry — nothing is re-uploaded and no credentials change. Paid plans are self-serve
+no card. Claiming it with an email moves the *same* account to 8 GB free with no card and
+no expiry, 16 GB after the account holder answers eight questions in the Drive web
+app. Nothing is re-uploaded and no credentials change. Paid plans are self-serve
 from a checkout link you open yourself; nothing resizes your plan without you.
 
 ## Links
