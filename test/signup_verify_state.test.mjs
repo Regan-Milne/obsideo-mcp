@@ -43,7 +43,7 @@ async function mockSignup(mode) {
         if (mode === "drop") return req.socket.destroy();
         return json(200, {
           account_id: "acct-new", account_token: "tok-new", api_key: "key-new", endpoint: "http://127.0.0.1:1",
-          region: "mock", bucket: "bkt-new", access_key: "AKnew", secret_key: "SKnew", quota_gb: 12, account_exists: false,
+          region: "mock", bucket: "bkt-new", access_key: "AKnew", secret_key: "SKnew", quota_gb: 8, account_exists: false,
         });
       }
       json(404, { error: "mock: unhandled " + req.method + " " + req.url });

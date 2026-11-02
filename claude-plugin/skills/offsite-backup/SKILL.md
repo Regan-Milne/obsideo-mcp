@@ -40,7 +40,8 @@ recursive upload; do not pretend otherwise.
 
 - Trial: 100 MB, expires in about a week, no email required.
 - Claiming with an email via `signup_start` / `signup_verify` moves the **same account**
-  to 12 GB free with no expiry and no card. Nothing moves and nothing is re-uploaded.
+  to 8 GB free with no expiry and no card (16 GB after eight questions in the Drive
+  web app). Nothing moves and nothing is re-uploaded.
 - Beyond that, `plan` shows the current quota and `upgrade` returns a checkout link for
   the user to open themselves.
 

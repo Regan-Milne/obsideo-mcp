@@ -50,7 +50,8 @@ server.registerTool(
       "proofs) and saves credentials locally. You usually do NOT need to call this: the first " +
       "put/get/ls/usage auto-creates a trial if no account is configured. Call it to provision " +
       "explicitly. To keep data beyond the trial, claim it with an email via signup_start " +
-      "(same account and data, quota rises to 12 GB). Takes about 15 to 30 seconds (proof of work " +
+      "(same account and data, quota rises to 8 GB free with no card and no expiry; 16 GB after the " +
+      "account holder answers eight questions in the Drive web app). Takes about 15 to 30 seconds (proof of work " +
       "plus a 10 second issuance window); progress is reported while it runs.",
     inputSchema: {
       source: z.string().optional().describe("Where you found Obsideo (defaults to 'mcp')"),
@@ -74,7 +75,7 @@ server.registerTool(
           "The encryption key was generated with the account and is held only on this machine; " +
           "call backup_keys now, or the data cannot be recovered if this machine is lost. " +
           "This is a small, temporary account on the production network; to keep the data, " +
-          "claim it with an email via signup_start (12 GB free, same account, nothing moves)."
+          "claim it with an email via signup_start (8 GB free, same account, nothing moves)."
       );
     } catch (e) {
       return errText(e);
@@ -87,8 +88,9 @@ server.registerTool(
   {
     title: "Start Obsideo signup (or claim the trial)",
     description:
-      "Start Obsideo signup: emails a 6-digit verification code (12 GB free tier, no card, " +
-      "no expiry). If a no-email trial is configured on this machine, this CLAIMS it in place: " +
+      "Start Obsideo signup: emails a 6-digit verification code (8 GB free, no card, no expiry; " +
+      "16 GB after the account holder answers eight questions in the Drive web app). If a no-email " +
+      "trial is configured on this machine, this CLAIMS it in place: " +
       "same account, bucket, keys and data, only the quota rises. Otherwise it creates a new " +
       "account for the email. Use a real inbox you or your human can read; documentation " +
       "placeholders and disposable domains are refused with labeled errors. Then call signup_verify.",

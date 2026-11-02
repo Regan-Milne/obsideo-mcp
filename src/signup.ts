@@ -3,7 +3,7 @@
  *
  * Two flows share the same two tools:
  *   - CLAIM (default when a no-email trial is configured): the trial is
- *     promoted to the 12 GB tier IN PLACE. Same account id, bucket, keys and
+ *     promoted to the free email tier IN PLACE. Same account id, bucket, keys and
  *     data; only the quota and the identity change. Authenticated by the
  *     trial's own account token.
  *   - AUTH (no account configured, or `abandon_trial`): a fresh account for
@@ -71,7 +71,7 @@ export async function signupStart(
       return (
         `Verification code sent to ${r.email ?? email}. Then call signup_verify with the code. ` +
         `This CLAIMS the current trial in place: ${r.keeps ?? "same account, bucket, keys and data; only the quota rises"}` +
-        ` (to ${r.quota_after_gb ?? 12} GB).`
+        ` (to ${r.quota_after_gb} GB).`
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -161,7 +161,7 @@ export async function signupVerify(email: string, code: string): Promise<string>
     const msg: string = r.message ?? "Claimed. Same account, same bucket, same keys; your data is untouched.";
     return (
       `${msg.startsWith("Claimed") ? "" : "Claimed. "}${msg} ` +
-      `Quota is now ${r.quota_gb ?? 12} GB with no expiry. Credentials did not change, so nothing ` +
+      `Quota is now ${r.quota_gb} GB with no expiry. Credentials did not change, so nothing ` +
       "propagates and nothing needs re-uploading. Remind the human to back up ~/.obsideo/mcp.json."
     );
   }

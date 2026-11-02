@@ -5,13 +5,15 @@ durable storage that is encrypted on your machine before it is uploaded and
 that you can independently prove is still held. Zero setup: the first
 `put`/`get`/`ls` auto-creates a free no-email trial account (100 MB, proof-of-work
 instead of identity), so storage just works with nothing to configure. Want more?
-Self-serve signup from inside the conversation upgrades to 12 GB free, no card,
-no CAPTCHA, no expiry.
+Self-serve signup from inside the conversation upgrades to 8 GB free, no card,
+no CAPTCHA, no expiry; 16 GB after the account holder answers eight questions in
+the Drive web app.
 
 [Obsideo](https://obsideo.io) is S3-compatible object storage where every
 stored object is replicated to 3 providers and challenged with chunk-level
 merkle proofs on a continuous cycle; providers are paid only for proofs
-they pass. 12 GB free with an email, no card. Paid plans are 200 GB blocks at
+they pass. 8 GB free with an email, no card; 16 GB after eight questions in the
+Drive web app. Paid plans are 200 GB blocks at
 $5/month each by card (Stripe), started from the `upgrade` tool and paid on
 Stripe's own page; the plan never changes size without the human's agreement.
 
@@ -77,7 +79,7 @@ settings, same command.)
 
 **Hermes Agent:** paste `https://obsideo.io/agent-storage` to your Hermes and say "set
 this up". That page is a runbook the agent executes: install, first store, first
-proof, then the free 12 GB tier with your email. The install it runs is one
+proof, then the free tier (8 GB) with your email. The install it runs is one
 command on any OS (Node 18 or newer is required for `npx`):
 
 ```bash
@@ -97,7 +99,7 @@ store its own MEMORY.md on obsideo, then to verify it.
 | Tool | What it does |
 |---|---|
 | `trial` | Create an instant no-email account (100 MB, ~7 days, proof-of-work, no human needed). Usually unnecessary: storage tools auto-create one on first use |
-| `signup_start` | Email a 6-digit code (12 GB free tier; real inboxes only, refusals are labeled). With a trial configured this **claims it in place**: same account, keys and data, quota rises |
+| `signup_start` | Email a 6-digit code (8 GB free; real inboxes only, refusals are labeled). With a trial configured this **claims it in place**: same account, keys and data, quota rises |
 | `signup_verify` | Complete signup or the claim. A new account generates the signing keypair locally and stores credentials; a claim changes nothing but the quota |
 | `put` | Store a file or inline content, encrypted client-side by default (`encrypt: false` opts out). Auto-creates a trial account if none is configured |
 | `get` | Retrieve an object (auto-decrypts with the local key) |
