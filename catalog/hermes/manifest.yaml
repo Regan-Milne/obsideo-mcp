@@ -18,7 +18,7 @@ transport:
   command: npx
   args:
     - "-y"
-    - "obsideo-mcp@0.6.0"
+    - "obsideo-mcp@0.7.7"
 
 # No credentials to collect. The server provisions its own account on first
 # use (see post_install) and stores the credentials locally under ~/.obsideo.
